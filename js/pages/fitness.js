@@ -73,7 +73,8 @@ function fitnessDayBlock(date, sessions, today) {
                   .map((set) => (set.w ? Number(set.w) + 'kg×' : '') + set.r)
                   .join(' · ');
                 return (
-                  '<div class="ex-line"><span class="ex-part">' + esc(ex.part || '—') + '</span>' +
+                  '<div class="ex-line"><span class="ex-ico">' + equipmentArt(ex.equipment) + '</span>' +
+                  '<span class="ex-part">' + esc(ex.part || '—') + '</span>' +
                   '<span class="ex-name">' + esc(ex.name) + '</span>' +
                   '<span class="ex-sets">' + esc(sets || '—') + '</span></div>'
                 );
@@ -100,12 +101,24 @@ function fitnessDayBlock(date, sessions, today) {
 function fitnessMonthStatsBlock(mk, monthSessions) {
   const days = {};
   const partCount = {};
+  const equipCount = {};
   monthSessions.forEach((session) => {
     days[session.date] = true;
     (session.exercises || []).forEach((ex) => {
       if (ex.part) partCount[ex.part] = (partCount[ex.part] || 0) + 1;
+      if (ex.equipment) equipCount[ex.equipment] = (equipCount[ex.equipment] || 0) + 1;
     });
   });
+  const equipRow = Object.keys(equipCount)
+    .sort((a, b) => equipCount[b] - equipCount[a])
+    .slice(0, 5)
+    .map((key) => {
+      return (
+        '<span class="equip-chip"><span class="ex-ico">' + equipmentArt(key) + '</span>' +
+        esc(equipmentLabel(key)) + ' ' + equipCount[key] + '</span>'
+      );
+    })
+    .join('');
   const top = Object.keys(partCount).sort((a, b) => partCount[b] - partCount[a])[0] || '—';
   return (
     '<section class="card"><div class="card-head"><div><h2>本月概览</h2>' +
@@ -115,7 +128,9 @@ function fitnessMonthStatsBlock(mk, monthSessions) {
     '<div class="cal-stat"><b>' + Object.keys(days).length + '</b><span>训练天数</span></div>' +
     '<div class="cal-stat"><b>' + fmtNum(Math.round(sumBy(monthSessions, (s) => sessionVolume(s)))) + '</b><span>总容量 kg</span></div>' +
     '<div class="cal-stat"><b>' + esc(top) + '</b><span>最常练部位</span></div>' +
-    '</div></section>'
+    '</div>' +
+    (equipRow ? '<div class="equip-row">' + equipRow + '</div>' : '') +
+    '</section>'
   );
 }
 
@@ -258,7 +273,10 @@ Pages.fitness = {
                     s.exercises
                       .map((ex) => {
                         const detail = (ex.sets || []).map((x) => (x.w ? x.w + 'kg×' : '') + x.r).join('，');
-                        return (ex.part ? esc(ex.part) + ' · ' : '') + esc(ex.name) + '：' + esc(detail || '—');
+                        return (
+                          '<span class="ex-ico sm">' + equipmentArt(ex.equipment) + '</span> ' +
+                          (ex.part ? esc(ex.part) + ' · ' : '') + esc(ex.name) + '：' + esc(detail || '—')
+                        );
                       })
                       .join('　')
                     + '</div>'
@@ -474,6 +492,12 @@ function openSessionModal(session, presetName, presetDate) {
             return '<option value="' + esc(part) + '"' + (exercise && exercise.part === part ? ' selected' : '') + '>' + esc(part) + '</option>';
           }).join('') +
           '</select>' +
+          '<select class="input ex-equip" data-ex-equip aria-label="器械">' +
+          '<option value="">器械</option>' +
+          EQUIPMENT_OPTIONS.map(function (item) {
+            return '<option value="' + esc(item.value) + '"' + (exercise && exercise.equipment === item.value ? ' selected' : '') + '>' + esc(item.label) + '</option>';
+          }).join('') +
+          '</select>' +
           '<input class="input" data-ex-name placeholder="动作名称，如 卧推" value="' + (exercise ? esc(exercise.name) : '') + '">' +
           '<button type="button" class="icon-btn danger" data-del-ex aria-label="删除动作">' + icon('x') + '</button>' +
           '</div>' +
@@ -502,6 +526,7 @@ function openSessionModal(session, presetName, presetDate) {
       const exercises = Array.prototype.map
         .call(submitForm.querySelectorAll('.ex-block'), (block) => ({
           part: String(block.querySelector('[data-ex-part]').value || ''),
+          equipment: String(block.querySelector('[data-ex-equip]').value || ''),
           name: String(block.querySelector('[data-ex-name]').value || '').trim(),
           sets: Array.prototype.map
             .call(block.querySelectorAll('.set-row'), (row) => ({

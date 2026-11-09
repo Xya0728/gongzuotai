@@ -91,6 +91,7 @@ Pages.diet = {
       '</div>' +
 
       '<div class="grid diet-cols mt-16">' +
+      '<div class="stack">' +
       '<section class="card"><div class="card-head"><div><h2>' + (isToday ? '今日饮食' : fmtDateCN(date, true) + ' 的饮食') + '</h2>' +
       '<p class="card-sub">按餐次记录，随时补充</p></div></div>' +
       MEALS.map((meal) => {
@@ -104,7 +105,8 @@ Pages.diet = {
             ? items
                 .map(
                   (item) =>
-                    '<span class="food-pill">' + esc(item.name) + (item.portion ? ' · ' + esc(item.portion) : '') +
+                    '<span class="food-pill"><span class="food-ico">' + foodArt(item.name) + '</span>' +
+                    esc(item.name) + (item.portion ? ' · ' + esc(item.portion) : '') +
                     '<button data-act="delFood" data-id="' + item.id + '" aria-label="删除">' + icon('x') + '</button></span>'
                 )
                 .join('')
@@ -113,6 +115,23 @@ Pages.diet = {
         );
       }).join('') +
       '</section>' +
+      '<section class="card"><div class="card-head"><div><h2>常吃食物</h2>' +
+      '<p class="card-sub">添加饮食时可以一键带入</p></div>' +
+      '<button class="btn ghost sm" data-act="addFav">+ 新增</button></div>' +
+      (d.diet.foods.length
+        ? '<div class="food-grid">' +
+          d.diet.foods
+            .map(
+              (f) =>
+                '<div class="food-card"><span class="food-thumb">' + foodArt(f.name, f.category) + '</span>' +
+                '<span class="food-meta"><b>' + esc(f.name) + '</b><span>' + esc(f.portion || '') + '</span></span>' +
+                '<button class="icon-btn danger" data-act="delFav" data-id="' + f.id + '" aria-label="删除">' + icon('trash') + '</button></div>'
+            )
+            .join('') +
+          '</div>'
+        : emptyState('还没有常吃食物', '把每天都会吃的东西存起来，记录会快很多')) +
+      '</section>' +
+      '</div>' +
 
       '<div class="stack">' +
       dietCalendarBlock(this.month, monthMeals, d.diet.water, date, todayKey()) +
@@ -140,23 +159,7 @@ Pages.diet = {
         : emptyState('还没有足够的体重记录', '记录两次以上就能看到趋势')) +
       '</section>' +
       '</div>' +
-      '</div>' +
-
-      '<section class="card mt-16"><div class="card-head"><div><h2>常吃食物</h2>' +
-      '<p class="card-sub">添加饮食时可以一键带入</p></div>' +
-      '<button class="btn ghost sm" data-act="addFav">+ 新增</button></div>' +
-      (d.diet.foods.length
-        ? '<div class="food-chips">' +
-          d.diet.foods
-            .map(
-              (f) =>
-                '<span class="food-pill">' + esc(f.name) + (f.portion ? ' · ' + esc(f.portion) : '') +
-                '<button data-act="delFav" data-id="' + f.id + '" aria-label="删除">' + icon('x') + '</button></span>'
-            )
-            .join('') +
-          '</div>'
-        : emptyState('还没有常吃食物', '把每天都会吃的东西存起来，记录会快很多')) +
-      '</section>';
+      '</div>';
 
     bind(el, {
       prev() {
@@ -281,14 +284,22 @@ function openFavFoodModal() {
     size: 'small',
     body:
       fInput('name', '食物名称', { placeholder: '例如：鸡胸肉', required: true, maxlength: 30 }) +
-      fInput('portion', '常用分量', { placeholder: '例如：100 g', maxlength: 30 }),
+      fRow(
+        fInput('portion', '常用分量', { placeholder: '例如：100 g', maxlength: 30 }),
+        fSelect('category', '分类', FOOD_CATEGORIES, '其他')
+      ),
     onSubmit(data) {
       const name = String(data.name || '').trim();
       if (!name) {
         toast('请填写食物名称', 'err');
         return false;
       }
-      Store.data.diet.foods.push({ id: uid(), name: name, portion: String(data.portion || '').trim() });
+      Store.data.diet.foods.push({
+        id: uid(),
+        name: name,
+        portion: String(data.portion || '').trim(),
+        category: data.category || foodCategoryOf(name),
+      });
       Store.save();
       toast('已加入常吃食物');
       App.refresh();

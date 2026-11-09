@@ -215,6 +215,58 @@ test('P2 饮食日历点选其它日期', async () => {
   eq(Pages.diet.month, monthKeyOf(other), '月份同步');
 });
 
+/* ---------------- P3 插画 ---------------- */
+
+test('P3 器械与食物插画库可用', async () => {
+  EQUIPMENT_OPTIONS.forEach((item) => {
+    includes(equipmentArt(item.value), '<svg', '器械插画 ' + item.value);
+  });
+  eq(foodCategoryOf('牛奶'), '蛋奶', '牛奶分类');
+  eq(foodCategoryOf('鸡胸肉'), '肉类', '鸡胸肉分类');
+  eq(foodCategoryOf('香蕉'), '水果', '香蕉分类');
+  eq(foodCategoryOf('不知道是什么'), '其他', '未知分类');
+  includes(foodArt('鸡蛋'), '<svg', '食物插画');
+});
+
+test('P3 健身详情显示器械插画', async () => {
+  resetData();
+  const t = todayKey();
+  Store.data.fitness.sessions = [
+    {
+      id: 'fs-art',
+      date: t,
+      name: '推日',
+      exercises: [
+        { part: '胸', equipment: 'barbell', name: '卧推', sets: [{ w: 60, r: 8 }] },
+        { part: '肩', equipment: 'dumbbell', name: '哑铃肩推', sets: [{ w: 16, r: 10 }] },
+      ],
+    },
+  ];
+  Store.save();
+  Pages.fitness.month = monthKeyOf(t);
+  Pages.fitness.selected = t;
+  showPage('fitness');
+  const icons = document.querySelectorAll('.ex-line .ex-ico svg');
+  eq(icons.length, 2, '每个动作一个器械插画');
+  eq(icons[0].getAttribute('aria-label'), '杠铃', '第一个动作器械');
+  eq(icons[1].getAttribute('aria-label'), '哑铃', '第二个动作器械');
+  includes(mainText(), '杠铃', '本月器械使用应显示杠铃');
+});
+
+test('P3 饮食显示食物插画与图库卡片', async () => {
+  resetData();
+  const t = todayKey();
+  Store.data.diet.meals = [{ id: 'dm-art', date: t, type: 'breakfast', name: '鸡蛋', portion: '2 个' }];
+  Store.save();
+  Pages.diet.date = t;
+  Pages.diet.month = monthKeyOf(t);
+  showPage('diet');
+  assert(document.querySelector('.food-pill .food-ico svg'), '餐食应显示食物插画');
+  const cards = document.querySelectorAll('.food-card');
+  eq(cards.length, Store.data.diet.foods.length, '常吃食物卡片数');
+  assert(cards[0].querySelector('svg'), '图库卡片应有插画');
+});
+
 /* ---------------- 运行 ---------------- */
 
 (async function runAll() {
