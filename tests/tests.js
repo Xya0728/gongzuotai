@@ -267,6 +267,43 @@ test('P3 饮食显示食物插画与图库卡片', async () => {
   assert(cards[0].querySelector('svg'), '图库卡片应有插画');
 });
 
+/* ---------------- P4 我的设备 / 我的游戏 ---------------- */
+
+test('P4 游戏娱乐分为我的游戏与我的设备', async () => {
+  resetData();
+  Pages.games.tab = 'games';
+  showPage('games');
+  const tabs = document.querySelectorAll('.tabs .tab');
+  eq(tabs.length, 2, '标签数量');
+  includes(tabs[0].textContent, '我的游戏');
+  includes(tabs[1].textContent, '我的设备');
+  document.querySelector('[data-act="tab"][data-tab="devices"]').click();
+  await tick(160);
+  eq(Pages.games.tab, 'devices', '切换后的标签');
+  eq(document.querySelectorAll('.device-col').length, 4, '四类设备');
+});
+
+test('P4 我的设备展示显示器/键盘/鼠标/耳机', async () => {
+  resetData();
+  Store.data.games.devices = [
+    { id: 'dv1', type: 'monitor', brand: 'LG', model: '27GP950', spec: '27 英寸 4K 144Hz', purchasedAt: todayKey(), price: 4999, note: '' },
+    { id: 'dv2', type: 'keyboard', brand: 'Keychron', model: 'Q1', spec: '75% 机械键盘', price: 899 },
+    { id: 'dv3', type: 'mouse', brand: 'Logitech', model: 'GPX', spec: '无线 60g', price: 999 },
+    { id: 'dv4', type: 'headset', brand: 'Sony', model: 'WH-1000XM5', spec: '降噪', price: 2999 },
+  ];
+  Store.save();
+  Pages.games.tab = 'devices';
+  showPage('games');
+  eq(document.querySelectorAll('.device-card').length, 4, '设备卡片数');
+  const text = mainText();
+  includes(text, 'LG');
+  includes(text, 'Keychron');
+  includes(text, 'GPX');
+  includes(text, 'WH-1000XM5');
+  includes(text, '27 英寸 4K 144Hz');
+  assert(document.querySelector('.device-ico svg'), '设备插画');
+});
+
 /* ---------------- 运行 ---------------- */
 
 (async function runAll() {

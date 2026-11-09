@@ -345,7 +345,7 @@ function defaultData() {
       ],
       water: {},
     },
-    games: { items: [], sessions: [] },
+    games: { items: [], sessions: [], devices: [] },
     money: {
       txns: [],
       budgets: {},

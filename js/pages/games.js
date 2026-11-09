@@ -1,13 +1,70 @@
 'use strict';
 
 /* =========================================================
-   游戏娱乐
+   游戏娱乐：我的游戏 / 我的设备
    ========================================================= */
 
-const GAME_PLATFORMS = ['Steam', 'PS5', 'Switch', 'Xbox', '手机', '其他'];
+const GAME_PLATFORMS = ['PC', 'Steam', 'PS5', 'Switch', 'Xbox', '手机', '其他'];
 
 Pages.games = {
+  tab: 'games',
+
   render(el) {
+    const isDevices = this.tab === 'devices';
+    const actions = isDevices
+      ? '<button class="btn primary" data-act="addDevice">' + icon('plus') + '添加设备</button>'
+      : '<button class="btn" data-act="addSession">' + icon('clock') + '记时长</button>' +
+        '<button class="btn primary" data-act="addGame">' + icon('plus') + '添加游戏</button>';
+
+    el.innerHTML =
+      pageHead(
+        '游戏娱乐',
+        isDevices ? '我的设备：显示器、键盘、鼠标、耳机' : '想玩、在玩、已通关分开管，顺手记录每周的娱乐时长',
+        actions
+      ) +
+      '<div class="tabs">' +
+      [
+        { id: 'games', label: '我的游戏' },
+        { id: 'devices', label: '我的设备' },
+      ]
+        .map(
+          (tab) =>
+            '<button class="tab' + (this.tab === tab.id ? ' active' : '') + '" data-act="tab" data-tab="' + tab.id + '">' +
+            esc(tab.label) + '</button>'
+        )
+        .join('') +
+      '</div>' +
+      '<div id="games-body"></div>';
+
+    bind(el, {
+      tab(node) {
+        Pages.games.tab = node.dataset.tab;
+        App.refresh();
+      },
+      addDevice() {
+        openDeviceModal(null);
+      },
+      addGame() {
+        openGameModal(null, 'want');
+      },
+      addSession() {
+        openGameSessionModal();
+      },
+    });
+
+    const body = el.querySelector('#games-body');
+    if (isDevices) {
+      body.innerHTML = this.devicesHTML();
+      this.bindDevices(body);
+    } else {
+      body.innerHTML = this.gamesHTML();
+      this.bindGames(body);
+    }
+  },
+
+  /* ---------------- 我的游戏 ---------------- */
+
+  gamesHTML() {
     const d = Store.data;
     const t = todayKey();
     const weekStart = weekStartKey(t);
@@ -15,7 +72,6 @@ Pages.games = {
     const weekHours = weekMinutes / 60;
     const limit = Number(d.settings.weeklyGameLimit) || 0;
     const over = limit > 0 && weekHours > limit;
-
     const byStatus = (status) => d.games.items.filter((g) => g.status === status);
 
     const days = [];
@@ -28,23 +84,19 @@ Pages.games = {
       });
     }
     const hasPlay = days.some((x) => x.value > 0);
-
     const recent = d.games.sessions.slice().sort(byDateDesc).slice(0, 10);
 
-    el.innerHTML =
-      pageHead(
-        '游戏娱乐',
-        '想玩、在玩、已通关分开管，顺手记录每周的娱乐时长',
-        '<button class="btn" data-act="addSession">' + icon('clock') + '记时长</button>' +
-          '<button class="btn primary" data-act="addGame">' + icon('plus') + '添加游戏</button>'
-      ) +
-
+    return (
       '<div class="grid grid-4">' +
       statCard({
         label: '本周娱乐时长',
         dot: true,
         value: hoursText(weekMinutes),
-        sub: limit ? (over ? '已超过上限 ' + limit + ' 小时，收一收' : '每周上限 ' + limit + ' 小时，还剩 ' + hoursText(Math.max(0, limit * 60 - weekMinutes))) : '还没有设置每周上限',
+        sub: limit
+          ? over
+            ? '已超过上限 ' + limit + ' 小时，收一收'
+            : '每周上限 ' + limit + ' 小时，还剩 ' + hoursText(Math.max(0, limit * 60 - weekMinutes))
+          : '还没有设置每周上限',
       }) +
       statCard({ label: '在玩', dot: true, value: byStatus('playing').length + '<small>款</small>', sub: '正在进行的游戏' }) +
       statCard({ label: '想玩', dot: true, value: byStatus('want').length + '<small>款</small>', sub: '待玩清单' }) +
@@ -111,9 +163,12 @@ Pages.games = {
           '</div>'
         : emptyState('还没有时长记录', '记录后，本周娱乐时长会自动汇总')) +
       '</section>' +
-      '</div>';
+      '</div>'
+    );
+  },
 
-    bind(el, {
+  bindGames(body) {
+    bind(body, {
       addGame(node) {
         openGameModal(null, node.dataset.status || 'want');
       },
@@ -145,9 +200,131 @@ Pages.games = {
       },
     });
   },
+
+  /* ---------------- 我的设备 ---------------- */
+
+  devicesHTML() {
+    const devices = Store.data.games.devices || [];
+    return (
+      '<div class="grid grid-4">' +
+      DEVICE_TYPES.map((type) => {
+        const count = devices.filter((x) => x.type === type.value).length;
+        return statCard({
+          label: type.label,
+          dot: true,
+          value: count + '<small>件</small>',
+          sub: count ? '在用 / 收藏' : '还没有记录',
+        });
+      }).join('') +
+      '</div>' +
+
+      '<div class="device-grid mt-16">' +
+      DEVICE_TYPES.map((type) => {
+        const list = devices.filter((x) => x.type === type.value);
+        return (
+          '<section class="card device-col"><div class="card-head"><div><h2>' + esc(type.label) + '</h2>' +
+          '<p class="card-sub">' + (list.length ? list.length + ' 件' : '还没有记录') + '</p></div>' +
+          '<button class="btn ghost sm" data-act="addDevice" data-type="' + type.value + '">+ 添加</button></div>' +
+          '<div class="device-list">' +
+          (list.length
+            ? list.map((device) => deviceCard(device)).join('')
+            : '<div class="kanban-empty">暂无设备</div>') +
+          '</div></section>'
+        );
+      }).join('') +
+      '</div>'
+    );
+  },
+
+  bindDevices(body) {
+    bind(body, {
+      addDevice(node) {
+        openDeviceModal(null, node.dataset.type || 'monitor');
+      },
+      editDevice(node) {
+        const device = findById(Store.data.games.devices || [], node.dataset.id);
+        if (device) openDeviceModal(device);
+      },
+      delDevice(node) {
+        const id = node.dataset.id;
+        confirmDelete('删除后无法恢复。', () => {
+          removeById(Store.data.games.devices, id);
+          Store.save();
+          App.refresh();
+        });
+      },
+    });
+  },
 };
 
-/* ---------------- 弹窗 ---------------- */
+/* ---------------- 设备卡片与弹窗 ---------------- */
+
+function deviceCard(device) {
+  const type = DEVICE_TYPES.find((item) => item.value === device.type);
+  const title = [device.brand, device.model].filter(Boolean).join(' ') || (type ? type.label : '设备');
+  return (
+    '<div class="device-card" data-act="editDevice" data-id="' + device.id + '">' +
+    '<div class="device-top"><span class="device-ico">' + deviceArt(device.type) + '</span>' +
+    '<span class="device-name"><b>' + esc(title) + '</b>' +
+    '<span>' + esc(type ? type.label : '') + (device.purchasedAt ? ' · ' + esc(fmtDateCN(device.purchasedAt)) : '') + '</span></span>' +
+    '<button class="icon-btn danger" data-act="delDevice" data-id="' + device.id + '" aria-label="删除">' + icon('trash') + '</button></div>' +
+    (device.spec ? '<div class="device-spec">' + esc(device.spec) + '</div>' : '') +
+    '<div class="device-meta">' +
+    (device.price ? fmtMoney(device.price, 'CNY') : '未记价格') +
+    (device.note ? ' · ' + esc(device.note) : '') +
+    '</div></div>'
+  );
+}
+
+function openDeviceModal(device, presetType) {
+  const editing = !!device;
+  openModal({
+    title: editing ? '编辑设备' : '添加设备',
+    size: 'small',
+    body:
+      fRow(
+        fSelect('type', '类型', DEVICE_TYPES, editing ? device.type : presetType || 'monitor'),
+        fInput('brand', '品牌', { value: editing ? device.brand : '', placeholder: '例如：LG' })
+      ) +
+      fRow(
+        fInput('model', '型号', { value: editing ? device.model : '', placeholder: '例如：27GP950' }),
+        fInput('spec', '规格参数', { value: editing ? device.spec : '', placeholder: '27 英寸 4K 144Hz' })
+      ) +
+      fRow(
+        fDate('purchasedAt', '购入日期', editing ? device.purchasedAt : ''),
+        fNumber('price', '价格（元）', { value: editing ? device.price : '', min: 0, step: '0.01' })
+      ) +
+      fTextarea('note', '备注', editing ? device.note : '', { rows: 2, placeholder: '使用感受、配件……' }),
+    onSubmit(data) {
+      const brand = String(data.brand || '').trim();
+      const model = String(data.model || '').trim();
+      if (!brand && !model) {
+        toast('至少填品牌或型号', 'err');
+        return false;
+      }
+      const payload = {
+        type: data.type || 'monitor',
+        brand: brand,
+        model: model,
+        spec: String(data.spec || '').trim(),
+        purchasedAt: data.purchasedAt || '',
+        price: Number(data.price) || 0,
+        note: String(data.note || '').trim(),
+      };
+      Store.data.games.devices = Store.data.games.devices || [];
+      if (editing) {
+        Object.assign(device, payload);
+      } else {
+        Store.data.games.devices.push(Object.assign({ id: uid(), createdAt: Date.now() }, payload));
+      }
+      Store.save();
+      toast(editing ? '设备已更新' : '设备已添加');
+      App.refresh();
+    },
+  });
+}
+
+/* ---------------- 游戏弹窗 ---------------- */
 
 function openGameModal(game, presetStatus) {
   const editing = !!game;
@@ -156,9 +333,9 @@ function openGameModal(game, presetStatus) {
     title: editing ? '编辑游戏' : '添加游戏',
     size: 'small',
     body:
-      fInput('title', '游戏名称', { value: editing ? game.title : '', placeholder: '例如：塞尔达传说', required: true }) +
+      fInput('title', '游戏名称', { value: editing ? game.title : '', placeholder: '例如：无畏契约', required: true }) +
       fRow(
-        fSelect('platform', '平台', GAME_PLATFORMS, editing ? game.platform : 'Steam'),
+        fSelect('platform', '平台', GAME_PLATFORMS, editing ? game.platform : 'PC'),
         fSelect('status', '状态', GAME_STATUS, editing ? game.status : presetStatus || 'want')
       ) +
       fSelect('rating', '评分', ratings, editing ? game.rating || 0 : 0) +

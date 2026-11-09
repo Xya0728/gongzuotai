@@ -18,6 +18,13 @@ const EQUIPMENT_OPTIONS = [
 
 const FOOD_CATEGORIES = ['蛋奶', '主食', '肉类', '蔬菜', '水果', '饮品', '其他'];
 
+const DEVICE_TYPES = [
+  { value: 'monitor', label: '显示器' },
+  { value: 'keyboard', label: '键盘' },
+  { value: 'mouse', label: '鼠标' },
+  { value: 'headset', label: '耳机' },
+];
+
 const ART_SHAPES = {
   barbell:
     '<rect x="14" y="30" width="36" height="4" rx="2" fill="#64748b"/>' +
@@ -70,6 +77,36 @@ const ART_SHAPES = {
   bodyweight:
     '<circle cx="32" cy="15" r="6" fill="#334155"/>' +
     '<path d="M32 22v15M18 27l14 3 14-3M32 37l-9 14M32 37l9 14" fill="none" stroke="#334155" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>',
+
+  monitor:
+    '<rect x="8" y="9" width="48" height="31" rx="4" fill="#334155"/>' +
+    '<rect x="12" y="13" width="40" height="23" rx="2" fill="#93c5fd"/>' +
+    '<path d="M26 40h12v7H26z" fill="#475569"/>' +
+    '<rect x="18" y="47" width="28" height="4" rx="2" fill="#334155"/>',
+
+  keyboard:
+    '<rect x="6" y="21" width="52" height="23" rx="5" fill="#334155"/>' +
+    '<rect x="10" y="25" width="6" height="4.5" rx="1.2" fill="#cbd5e1"/>' +
+    '<rect x="18" y="25" width="6" height="4.5" rx="1.2" fill="#cbd5e1"/>' +
+    '<rect x="26" y="25" width="6" height="4.5" rx="1.2" fill="#cbd5e1"/>' +
+    '<rect x="34" y="25" width="6" height="4.5" rx="1.2" fill="#cbd5e1"/>' +
+    '<rect x="42" y="25" width="10" height="4.5" rx="1.2" fill="#cbd5e1"/>' +
+    '<rect x="10" y="32" width="10" height="4.5" rx="1.2" fill="#94a3b8"/>' +
+    '<rect x="23" y="32" width="16" height="4.5" rx="1.2" fill="#94a3b8"/>' +
+    '<rect x="42" y="32" width="10" height="4.5" rx="1.2" fill="#94a3b8"/>' +
+    '<rect x="16" y="39" width="32" height="2.5" rx="1.2" fill="#64748b"/>',
+
+  mouse:
+    '<rect x="21" y="11" width="22" height="42" rx="11" fill="#334155"/>' +
+    '<path d="M32 11v15" stroke="#cbd5e1" stroke-width="2.4"/>' +
+    '<circle cx="32" cy="21" r="3.2" fill="#cbd5e1"/>',
+
+  headset:
+    '<path d="M13 41V30a19 19 0 0 1 38 0v11" fill="none" stroke="#334155" stroke-width="5" stroke-linecap="round"/>' +
+    '<rect x="9" y="35" width="10" height="17" rx="4.5" fill="#334155"/>' +
+    '<rect x="45" y="35" width="10" height="17" rx="4.5" fill="#334155"/>' +
+    '<rect x="12" y="39" width="4" height="9" rx="2" fill="#94a3b8"/>' +
+    '<rect x="48" y="39" width="4" height="9" rx="2" fill="#94a3b8"/>',
 
   egg:
     '<path d="M18 36c-4-8 1-16 9-18s13 2 14 8c1 5-1 9-5 12-6 4-15 4-18-2z" fill="#f8fafc"/>' +
@@ -177,4 +214,10 @@ function foodArt(name, category) {
     shape = { 蛋奶: 'egg', 主食: 'rice', 肉类: 'meat', 蔬菜: 'veg', 水果: 'fruit', 饮品: 'drink' }[cat] || 'other';
   }
   return artSVG(shape, name || '食物');
+}
+
+
+function deviceArt(type) {
+  const found = DEVICE_TYPES.find((item) => item.value === type);
+  return artSVG(type || 'monitor', found ? found.label : '设备');
 }
