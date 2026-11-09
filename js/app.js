@@ -23,6 +23,7 @@ const App = {
       }
     });
     this.handleHash();
+    Store.connectServer();
 
     if (!Store.ok) {
       toast('浏览器禁用了本地存储，数据可能无法保存', 'err');
@@ -111,9 +112,11 @@ const App = {
       '<div class="sidebar-foot"><div class="today-mini">' + esc(fmtDateCN(todayKey(), true)) + '</div>' +
       '<div class="save-row"><span class="save-dot"></span>' +
       '<span class="save-state" id="save-state-text">' +
-      (Store.lastSavedAt ? '已保存 ' + saveClock(Store.lastSavedAt) : '等待保存') + '</span>' +
+      saveStateText() + '</span>' +
       '<button class="btn sm" id="save-now">保存</button></div>' +
-      '<div class="muted tiny mt-8">自动保存已开启 · ⌘S 手动保存</div></div>';
+      '<div class="muted tiny mt-8">' +
+      (Store.mode === 'server' ? '自动保存 · ⌘S 保存' : '自动保存已开启 · ⌘S 保存') +
+      '</div></div>';
 
     const saveBtn = sidebar.querySelector('#save-now');
     if (saveBtn) saveBtn.addEventListener('click', manualSave);

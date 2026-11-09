@@ -1205,3 +1205,5 @@ body.modal-open { overflow: hidden; }
 }
 .save-state { flex: 1; font-size: 11px; color: #4b5563; font-variant-numeric: tabular-nums; }
 .save-row .btn { height: 26px; padding: 0 10px; font-size: 11.5px; }
+
+.sidebar-foot .tiny { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

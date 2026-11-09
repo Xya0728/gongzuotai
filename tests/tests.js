@@ -337,7 +337,7 @@ test('P5 预置游戏只种一次，不会重复', async () => {
 test('P6 自动保存后侧栏显示保存时间', async () => {
   resetData();
   Store.data.memos.push({ id: 'save-test', text: '自动保存', done: false, createdAt: Date.now(), date: todayKey() });
-  Store.save();
+  await Store.flush();
   App.render();
   const text = document.getElementById('save-state-text');
   assert(text, '侧栏应有保存状态');
@@ -376,10 +376,44 @@ test('P7 品牌名是「Xya的工作台」', async () => {
   assert(document.title.indexOf('我的生活工作台') === -1, '不应再出现旧名字');
 });
 
+/* ---------------- P8 数据文件（仅 http 模式） ---------------- */
+
+if (location.protocol === 'http:') {
+  test('P8 服务端模式使用独立数据文件', async () => {
+    eq(Store.mode, 'server', '运行模式');
+    includes(Store.serverPath, '工作台数据.json', '数据文件路径');
+    showPage('settings');
+    includes(mainText(), '立即保存', '设置页应有保存入口');
+    includes(mainText(), '工作台数据.json', '设置页应显示文件路径');
+  });
+
+  test('P8 自动保存写入数据文件', async () => {
+    resetData();
+    Store.data.memos.push({ id: 'srv-auto', text: '文件自动保存', done: false, createdAt: Date.now(), date: todayKey() });
+    Store.save();
+    await tick(900);
+    const payload = await (await fetch('/api/state', { cache: 'no-store' })).json();
+    const list = (payload.data && payload.data.memos) || [];
+    assert(list.some((m) => m.text === '文件自动保存'), '数据文件里应有新记录');
+    includes(document.getElementById('save-state-text').textContent, '已保存到文件', '侧栏应显示保存到文件');
+  });
+
+  test('P8 手动保存立即写入数据文件', async () => {
+    resetData();
+    Store.data.memos.push({ id: 'srv-manual', text: '手动保存', done: false, createdAt: Date.now(), date: todayKey() });
+    const ok = await Store.flush();
+    assert(ok, '手动保存应成功');
+    const payload = await (await fetch('/api/state', { cache: 'no-store' })).json();
+    const list = (payload.data && payload.data.memos) || [];
+    assert(list.some((m) => m.text === '手动保存'), '数据文件里应有手动保存的记录');
+  });
+}
+
 /* ---------------- 运行 ---------------- */
 
 (async function runAll() {
-  await tick(60);
+  for (let i = 0; i < 120 && !window.__APP_READY; i++) await tick(50);
+  await tick(80);
   const lines = [];
   let passed = 0;
   for (const item of TESTS) {

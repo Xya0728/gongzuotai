@@ -385,6 +385,10 @@ const Store = {
   ok: true,
   loadedAt: null,
   lastSavedAt: null,
+  mode: 'local',
+  serverPath: '',
+  saveState: 'idle',
+  serverTimer: null,
 
   load() {
     let raw = null;
@@ -403,27 +407,113 @@ const Store = {
     }
     this.data = mergeDeep(defaultData(), saved && typeof saved === 'object' ? saved : {});
     if (!this.ok) return;
-    if (!this.data.settings.seededGames) {
-      if (!this.data.games.items.length) this.data.games.items = defaultGames();
-      this.data.settings.seededGames = true;
-      this.save();
-    }
+    this.ensureSeedData();
+    if (saved) this.lastSavedAt = new Date();
     if (!raw) this.save();
     this.loadedAt = new Date();
   },
 
-  save() {
-    if (!this.ok) return false;
+  persistLocal() {
     try {
       localStorage.setItem(DB_KEY, JSON.stringify(this.data));
-      this.lastSavedAt = new Date();
-      updateSaveState();
       return true;
     } catch (err) {
       this.ok = false;
       toast('保存失败：浏览器本地存储不可用', 'err');
+      return false;
+    }
+  },
+
+  ensureSeedData() {
+    if (!this.data.settings.seededGames) {
+      if (!this.data.games.items.length) this.data.games.items = defaultGames();
+      this.data.settings.seededGames = true;
+    }
+  },
+
+  save() {
+    if (!this.ok) return false;
+    const ok = this.persistLocal();
+    this.lastSavedAt = new Date();
+    this.queueServerSave();
+    updateSaveState();
+    return ok;
+  },
+
+  queueServerSave() {
+    if (this.mode !== 'server') return;
+    this.saveState = 'saving';
+    updateSaveState();
+    clearTimeout(this.serverTimer);
+    this.serverTimer = setTimeout(() => {
+      this.pushToServer();
+    }, 400);
+  },
+
+  async pushToServer() {
+    if (this.mode !== 'server') return true;
+    try {
+      const res = await fetch('/api/state', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: this.data }),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const payload = await res.json();
+      if (!payload || !payload.ok) throw new Error('保存被拒绝');
+      this.lastSavedAt = payload.savedAt ? new Date(payload.savedAt) : new Date();
+      this.saveState = 'saved';
+      updateSaveState();
+      return true;
+    } catch (err) {
+      this.saveState = 'error';
       updateSaveState();
       return false;
+    }
+  },
+
+  async flush() {
+    const ok = this.save();
+    if (!ok) return false;
+    if (this.mode !== 'server') return true;
+    clearTimeout(this.serverTimer);
+    return this.pushToServer();
+  },
+
+  async connectServer() {
+    if (location.protocol !== 'http:' && location.protocol !== 'https:') {
+      window.__APP_READY = true;
+      return;
+    }
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = setTimeout(() => {
+      if (controller) controller.abort();
+    }, 4000);
+    try {
+      const res = await fetch('/api/state', { cache: 'no-store', signal: controller ? controller.signal : undefined });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const payload = await res.json();
+      if (!payload || !payload.ok) throw new Error('数据服务不可用');
+      this.mode = 'server';
+      this.serverPath = payload.path || '';
+      if (payload.data && typeof payload.data === 'object') {
+        this.data = mergeDeep(defaultData(), payload.data);
+        this.ensureSeedData();
+      } else {
+        await this.pushToServer();
+      }
+      this.lastSavedAt = payload.savedAt ? new Date(payload.savedAt) : new Date();
+      this.saveState = 'saved';
+      this.persistLocal();
+      window.__APP_READY = true;
+      if (typeof App !== 'undefined') App.refresh();
+    } catch (err) {
+      this.mode = 'local';
+      this.serverPath = '';
+      window.__APP_READY = true;
+      if (typeof App !== 'undefined') App.refresh();
+    } finally {
+      clearTimeout(timer);
     }
   },
 
@@ -763,15 +853,25 @@ function saveClock(d) {
   return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
 }
 
-function updateSaveState() {
-  const text = document.getElementById('save-state-text');
-  if (!text) return;
-  text.textContent = Store.lastSavedAt ? '已保存 ' + saveClock(Store.lastSavedAt) : '等待保存';
+function saveStateText() {
+  if (Store.saveState === 'saving') return '保存中…';
+  if (Store.saveState === 'error') return '保存失败';
+  if (!Store.lastSavedAt) return '等待保存';
+  return (Store.mode === 'server' ? '已保存到文件 ' : '已保存 ') + saveClock(Store.lastSavedAt);
 }
 
-function manualSave() {
-  if (!Store.save()) return;
-  toast('已保存 · ' + saveClock(new Date()));
+function updateSaveState() {
+  const text = document.getElementById('save-state-text');
+  if (text) text.textContent = saveStateText();
+}
+
+async function manualSave() {
+  const ok = await Store.flush();
+  if (!ok) {
+    toast('保存失败，请检查数据服务', 'err');
+    return;
+  }
+  toast(Store.mode === 'server' ? '已保存到数据文件' : '已保存 · ' + saveClock(new Date()));
 }
 
 /* ---------- 小工具 ---------- */

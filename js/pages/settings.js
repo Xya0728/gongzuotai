@@ -31,13 +31,22 @@ Pages.settings = {
 
       /* ---- 数据 ---- */
       '<section class="card"><div class="card-head"><div><h2>数据备份</h2>' +
-      '<p class="card-sub">数据只保存在这台电脑的浏览器里，建议定期导出</p></div></div>' +
+      '<p class="card-sub">' +
+      (Store.mode === 'server' ? '数据保存在本机 data 目录的文件里，建议定期导出' : '数据只保存在这台电脑的浏览器里，建议定期导出') +
+      '</p></div></div>' +
       '<div class="setting-row"><div><div class="s-title">导出备份</div>' +
       '<div class="s-desc">生成一个 JSON 文件，保存到电脑上</div></div>' +
       '<div class="s-ctl"><button class="btn sm" data-act="export">' + icon('download') + '导出</button></div></div>' +
       '<div class="setting-row"><div><div class="s-title">从备份恢复</div>' +
       '<div class="s-desc">选择之前导出的文件，会覆盖当前数据</div></div>' +
       '<div class="s-ctl"><button class="btn sm" data-act="import">' + icon('upload') + '选择文件</button></div></div>' +
+      '<div class="setting-row"><div><div class="s-title">数据文件</div>' +
+      '<div class="s-desc">' +
+      (Store.mode === 'server'
+        ? esc(Store.serverPath || 'data/工作台数据.json')
+        : '当前是直接打开页面，数据只存在浏览器里；双击「启动Xya的工作台.command」可用独立数据文件') +
+      '</div></div>' +
+      '<div class="s-ctl"><button class="btn sm" data-act="saveNow">立即保存</button></div></div>' +
       '<div class="setting-row"><div><div class="s-title">清空所有数据</div>' +
       '<div class="s-desc">删除这台电脑上的全部记录，无法恢复</div></div>' +
       '<div class="s-ctl"><button class="btn sm" data-act="reset" style="color:#b91c1c;border-color:#f1c4c4">清空</button></div></div>' +
@@ -110,6 +119,9 @@ Pages.settings = {
     bind(el, {
       export() {
         exportData();
+      },
+      saveNow() {
+        manualSave();
       },
       import() {
         const input = el.querySelector('#import-file');
