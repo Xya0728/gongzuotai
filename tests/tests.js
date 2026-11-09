@@ -365,6 +365,17 @@ test('P6 快捷键 Cmd+S 触发保存', async () => {
   assert(Store.lastSavedAt.getTime() > before, '快捷键应触发保存');
 });
 
+/* ---------------- P7 品牌名 ---------------- */
+
+test('P7 品牌名是「Xya的工作台」', async () => {
+  resetData();
+  App.render();
+  includes(document.querySelector('.brand-text strong').textContent, 'Xya的工作台');
+  includes(document.getElementById('sidebar').textContent, 'Xya的工作台');
+  includes(document.title, 'Xya的工作台');
+  assert(document.title.indexOf('我的生活工作台') === -1, '不应再出现旧名字');
+});
+
 /* ---------------- 运行 ---------------- */
 
 (async function runAll() {

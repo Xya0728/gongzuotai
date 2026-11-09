@@ -71,7 +71,7 @@ const App = {
 
     main.scrollTop = scrollY;
     this.renderSidebar();
-    document.title = mod.name + ' · 我的生活工作台';
+    document.title = mod.name + ' · Xya的工作台';
 
     if (!Store.ok) {
       main.insertAdjacentHTML(
@@ -106,7 +106,7 @@ const App = {
 
     sidebar.innerHTML =
       '<div class="brand"><div class="logo">X</div>' +
-      '<div class="brand-text"><strong>我的生活工作台</strong><span>只在本机运行</span></div></div>' +
+      '<div class="brand-text"><strong>Xya的工作台</strong><span>只在本机运行</span></div></div>' +
       '<nav class="nav">' + groups + '</nav>' +
       '<div class="sidebar-foot"><div class="today-mini">' + esc(fmtDateCN(todayKey(), true)) + '</div>' +
       '<div class="save-row"><span class="save-dot"></span>' +
