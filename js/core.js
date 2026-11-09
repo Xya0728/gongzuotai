@@ -99,6 +99,8 @@ const GAME_STATUS = [
   { value: 'done', label: '已通关', tone: 'green' },
 ];
 
+const BODY_PARTS = ['胸', '背', '肩', '腿', '臀', '手臂', '核心', '有氧', '全身'];
+
 /* =========================================================
    工具函数
    ========================================================= */
@@ -220,6 +222,20 @@ function toCNY(amount, cur) {
 
 function fmtBase(amount, cur) {
   return '≈' + fmtMoney(toCNY(amount, cur), 'CNY');
+}
+
+function monthGrid(mk) {
+  const parts = String(mk).split('-').map(Number);
+  const year = parts[0];
+  const month = parts[1];
+  const first = new Date(year, month - 1, 1);
+  const offset = (first.getDay() + 6) % 7;
+  const total = new Date(year, month, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < offset; i++) cells.push(null);
+  for (let day = 1; day <= total; day++) cells.push(mk + '-' + pad2(day));
+  while (cells.length % 7) cells.push(null);
+  return cells;
 }
 
 function pct(part, total) {

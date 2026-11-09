@@ -12,6 +12,113 @@ function sessionSets(session) {
   return sumBy(session.exercises || [], (ex) => (ex.sets || []).length);
 }
 
+function fitnessCalendarBlock(mk, sessionsByDate, selected, today) {
+  const cells = monthGrid(mk);
+  const week = ['一', '二', '三', '四', '五', '六', '日'];
+  return (
+    '<section class="card"><div class="card-head"><div><h2>训练日历</h2>' +
+    '<p class="card-sub">点某一天，查看当天的部位、动作和组数</p></div>' +
+    '<div class="month-nav">' +
+    '<button class="icon-btn" data-act="prevMonth" aria-label="上个月">' + icon('chevronL') + '</button>' +
+    '<span class="month-title">' + esc(monthLabel(mk)) + '</span>' +
+    '<button class="icon-btn" data-act="nextMonth" aria-label="下个月">' + icon('chevronR') + '</button>' +
+    '</div></div>' +
+    '<div class="cal-week">' + week.map((w) => '<span>' + w + '</span>').join('') + '</div>' +
+    '<div class="cal-grid">' +
+    cells
+      .map((date) => {
+        if (!date) return '<span class="cal-cell empty"></span>';
+        const list = sessionsByDate[date] || [];
+        const parts = [];
+        list.forEach((session) => {
+          (session.exercises || []).forEach((ex) => {
+            if (ex.part && parts.indexOf(ex.part) === -1) parts.push(ex.part);
+          });
+        });
+        const classes =
+          'cal-cell' +
+          (list.length ? ' has' : '') +
+          (date === today ? ' today' : '') +
+          (date === selected ? ' selected' : '');
+        return (
+          '<button class="' + classes + '" data-act="pickDay" data-date="' + date + '">' +
+          '<span class="cal-day">' + parseDate(date).getDate() + '</span>' +
+          '<span class="cal-marks">' +
+          parts.slice(0, 2).map((part) => '<span class="cal-tag">' + esc(part) + '</span>').join('') +
+          (list.length && !parts.length ? '<span class="cal-tag">训练</span>' : '') +
+          '</span>' +
+          (list.length ? '<span class="cal-count">' + list.length + ' 次</span>' : '') +
+          '</button>'
+        );
+      })
+      .join('') +
+    '</div></section>'
+  );
+}
+
+function fitnessDayBlock(date, sessions, today) {
+  const totalSets = sumBy(sessions, (session) => sessionSets(session));
+  return (
+    '<section class="card"><div class="card-head"><div><h2>' + esc(fmtDateCN(date, true)) + '</h2>' +
+    '<p class="card-sub">' +
+    (sessions.length ? sessions.length + ' 次训练 · ' + totalSets + ' 组' : '这一天还没有训练记录') +
+    '</p></div>' +
+    '<button class="btn sm" data-act="addOnDay" data-date="' + date + '">+ 记录</button></div>' +
+    (sessions.length
+      ? sessions
+          .map((session) => {
+            const exercises = (session.exercises || [])
+              .map((ex) => {
+                const sets = (ex.sets || [])
+                  .map((set) => (set.w ? Number(set.w) + 'kg×' : '') + set.r)
+                  .join(' · ');
+                return (
+                  '<div class="ex-line"><span class="ex-part">' + esc(ex.part || '—') + '</span>' +
+                  '<span class="ex-name">' + esc(ex.name) + '</span>' +
+                  '<span class="ex-sets">' + esc(sets || '—') + '</span></div>'
+                );
+              })
+              .join('');
+            return (
+              '<div class="day-session">' +
+              '<div class="day-session-head"><b>' + esc(session.name || '训练') + '</b>' +
+              '<span class="chip orange">' + fmtNum(Math.round(sessionVolume(session))) + ' kg</span>' +
+              '<span class="item-actions" style="opacity:1">' +
+              '<button class="icon-btn" data-act="editSession" data-id="' + session.id + '" aria-label="编辑">' + icon('edit') + '</button>' +
+              '<button class="icon-btn danger" data-act="delSession" data-id="' + session.id + '" aria-label="删除">' + icon('trash') + '</button>' +
+              '</span></div>' +
+              '<div class="ex-lines">' + (exercises || '<div class="tiny muted">没有动作明细</div>') + '</div>' +
+              '</div>'
+            );
+          })
+          .join('')
+      : emptyState('这天没有训练', '点日历上别的日期看看，或者补记一次')) +
+    '</section>'
+  );
+}
+
+function fitnessMonthStatsBlock(mk, monthSessions) {
+  const days = {};
+  const partCount = {};
+  monthSessions.forEach((session) => {
+    days[session.date] = true;
+    (session.exercises || []).forEach((ex) => {
+      if (ex.part) partCount[ex.part] = (partCount[ex.part] || 0) + 1;
+    });
+  });
+  const top = Object.keys(partCount).sort((a, b) => partCount[b] - partCount[a])[0] || '—';
+  return (
+    '<section class="card"><div class="card-head"><div><h2>本月概览</h2>' +
+    '<p class="card-sub">' + esc(monthLabel(mk)) + '</p></div></div>' +
+    '<div class="cal-stats">' +
+    '<div class="cal-stat"><b>' + monthSessions.length + '</b><span>训练次数</span></div>' +
+    '<div class="cal-stat"><b>' + Object.keys(days).length + '</b><span>训练天数</span></div>' +
+    '<div class="cal-stat"><b>' + fmtNum(Math.round(sumBy(monthSessions, (s) => sessionVolume(s)))) + '</b><span>总容量 kg</span></div>' +
+    '<div class="cal-stat"><b>' + esc(top) + '</b><span>最常练部位</span></div>' +
+    '</div></section>'
+  );
+}
+
 Pages.fitness = {
   render(el) {
     const d = Store.data;
@@ -35,6 +142,18 @@ Pages.fitness = {
 
     const sessions = d.fitness.sessions.slice().sort(byDateDesc);
 
+    const mk = this.month || (this.month = monthKeyOf(t));
+    if (!this.selected) this.selected = t;
+    if (monthKeyOf(this.selected) !== mk) this.selected = mk + '-01';
+    const sessionsByDate = {};
+    d.fitness.sessions.forEach((s) => {
+      if (!sessionsByDate[s.date]) sessionsByDate[s.date] = [];
+      sessionsByDate[s.date].push(s);
+    });
+    const daySessions = (sessionsByDate[this.selected] || [])
+      .slice()
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
     el.innerHTML =
       pageHead(
         '健身计划',
@@ -57,6 +176,14 @@ Pages.fitness = {
         value: d.fitness.routines.length + '<small>个</small>',
         sub: d.fitness.routines.length ? d.fitness.routines.map((r) => r.name).join(' / ') : '还没有训练模板',
       }) +
+      '</div>' +
+
+      '<div class="grid fitness-cal-cols mt-16">' +
+      fitnessCalendarBlock(mk, sessionsByDate, this.selected, t) +
+      '<div class="stack">' +
+      fitnessDayBlock(this.selected, daySessions, t) +
+      fitnessMonthStatsBlock(mk, d.fitness.sessions.filter((s) => s.date.indexOf(mk) === 0)) +
+      '</div>' +
       '</div>' +
 
       '<div class="grid grid-2 mt-16" style="align-items:start">' +
@@ -131,7 +258,7 @@ Pages.fitness = {
                     s.exercises
                       .map((ex) => {
                         const detail = (ex.sets || []).map((x) => (x.w ? x.w + 'kg×' : '') + x.r).join('，');
-                        return esc(ex.name) + '：' + esc(detail || '—');
+                        return (ex.part ? esc(ex.part) + ' · ' : '') + esc(ex.name) + '：' + esc(detail || '—');
                       })
                       .join('　')
                     + '</div>'
@@ -150,6 +277,24 @@ Pages.fitness = {
       '</section>';
 
     bind(el, {
+      prevMonth() {
+        Pages.fitness.month = addMonths(Pages.fitness.month, -1);
+        Pages.fitness.selected = Pages.fitness.month + '-01';
+        App.refresh();
+      },
+      nextMonth() {
+        Pages.fitness.month = addMonths(Pages.fitness.month, 1);
+        Pages.fitness.selected = Pages.fitness.month + '-01';
+        App.refresh();
+      },
+      pickDay(node) {
+        Pages.fitness.selected = node.dataset.date;
+        Pages.fitness.month = monthKeyOf(node.dataset.date);
+        App.refresh();
+      },
+      addOnDay(node) {
+        openSessionModal(null, '', node.dataset.date);
+      },
       addSession() {
         openSessionModal(null, '');
       },
@@ -270,7 +415,7 @@ function openMetricModal(metric) {
   });
 }
 
-function openSessionModal(session, presetName) {
+function openSessionModal(session, presetName, presetDate) {
   const editing = !!session;
   const form = openModal({
     title: editing ? '编辑训练记录' : '记录训练',
@@ -278,7 +423,7 @@ function openSessionModal(session, presetName) {
     size: 'wide',
     body:
       fRow(
-        fDate('date', '日期', editing ? session.date : todayKey()),
+        fDate('date', '日期', editing ? session.date : presetDate || todayKey()),
         fInput('name', '训练名称', {
           value: editing ? session.name : presetName || '',
           placeholder: '例如：推日',
@@ -323,6 +468,12 @@ function openSessionModal(session, presetName) {
         block.className = 'ex-block';
         block.innerHTML =
           '<div class="ex-head">' +
+          '<select class="input ex-part" data-ex-part aria-label="训练部位">' +
+          '<option value="">部位</option>' +
+          BODY_PARTS.map(function (part) {
+            return '<option value="' + esc(part) + '"' + (exercise && exercise.part === part ? ' selected' : '') + '>' + esc(part) + '</option>';
+          }).join('') +
+          '</select>' +
           '<input class="input" data-ex-name placeholder="动作名称，如 卧推" value="' + (exercise ? esc(exercise.name) : '') + '">' +
           '<button type="button" class="icon-btn danger" data-del-ex aria-label="删除动作">' + icon('x') + '</button>' +
           '</div>' +
@@ -350,6 +501,7 @@ function openSessionModal(session, presetName) {
     onSubmit(data, submitForm) {
       const exercises = Array.prototype.map
         .call(submitForm.querySelectorAll('.ex-block'), (block) => ({
+          part: String(block.querySelector('[data-ex-part]').value || ''),
           name: String(block.querySelector('[data-ex-name]').value || '').trim(),
           sets: Array.prototype.map
             .call(block.querySelectorAll('.set-row'), (row) => ({

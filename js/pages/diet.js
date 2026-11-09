@@ -4,6 +4,37 @@
    饮食计划
    ========================================================= */
 
+function dietCalendarBlock(mk, meals, water, selected, today) {
+  const cells = monthGrid(mk);
+  const week = ['一', '二', '三', '四', '五', '六', '日'];
+  return (
+    '<section class="card cal-compact"><div class="card-head"><div><h2>饮食日历</h2>' +
+    '<p class="card-sub">点某一天，查看当天的三餐和饮水</p></div></div>' +
+    '<div class="cal-week">' + week.map((w) => '<span>' + w + '</span>').join('') + '</div>' +
+    '<div class="cal-grid cal-grid-diet">' +
+    cells
+      .map((date) => {
+        if (!date) return '<span class="cal-cell empty"></span>';
+        const dayMeals = meals.filter((m) => m.date === date);
+        const dots = ['breakfast', 'lunch', 'dinner']
+          .map((type) => '<i class="' + (dayMeals.some((m) => m.type === type) ? 'on' : '') + '"></i>')
+          .join('');
+        const waterMl = Number(water[date]) || 0;
+        return (
+          '<button class="cal-cell diet-cal' + (dayMeals.length ? ' has' : '') +
+          (date === today ? ' today' : '') + (date === selected ? ' selected' : '') +
+          '" data-act="pickDay" data-date="' + date + '">' +
+          '<span class="cal-day">' + parseDate(date).getDate() + '</span>' +
+          '<span class="diet-dots">' + dots + '</span>' +
+          (waterMl ? '<span class="cal-water" title="饮水 ' + waterMl + ' ml"></span>' : '') +
+          '</button>'
+        );
+      })
+      .join('') +
+    '</div></section>'
+  );
+}
+
 Pages.diet = {
   date: todayKey(),
 
@@ -11,6 +42,9 @@ Pages.diet = {
     const d = Store.data;
     const date = this.date;
     const isToday = date === todayKey();
+    const mk = this.month || (this.month = monthKeyOf(date));
+    if (monthKeyOf(date) !== mk) this.month = monthKeyOf(date);
+    const monthMeals = d.diet.meals.filter((m) => m.date.indexOf(this.month) === 0);
     const meals = d.diet.meals.filter((m) => m.date === date);
     const mainMeals = ['breakfast', 'lunch', 'dinner'];
     const recorded = mainMeals.filter((type) => meals.some((m) => m.type === type)).length;
@@ -81,6 +115,7 @@ Pages.diet = {
       '</section>' +
 
       '<div class="stack">' +
+      dietCalendarBlock(this.month, monthMeals, d.diet.water, date, todayKey()) +
       '<section class="card"><div class="card-head"><div><h2>饮水</h2>' +
       '<p class="card-sub">' + water + ' / ' + goal + ' ml</p></div>' +
       '<span class="chip teal">' + filledCups + ' / ' + cups + ' 杯</span></div>' +
@@ -126,10 +161,17 @@ Pages.diet = {
     bind(el, {
       prev() {
         Pages.diet.date = addDays(Pages.diet.date, -1);
+        Pages.diet.month = monthKeyOf(Pages.diet.date);
         App.refresh();
       },
       next() {
         Pages.diet.date = addDays(Pages.diet.date, 1);
+        Pages.diet.month = monthKeyOf(Pages.diet.date);
+        App.refresh();
+      },
+      pickDay(node) {
+        Pages.diet.date = node.dataset.date;
+        Pages.diet.month = monthKeyOf(node.dataset.date);
         App.refresh();
       },
       today() {
@@ -173,6 +215,7 @@ Pages.diet = {
     dateInput.addEventListener('change', () => {
       if (!dateInput.value) return;
       Pages.diet.date = dateInput.value;
+      Pages.diet.month = monthKeyOf(dateInput.value);
       App.refresh();
     });
   },

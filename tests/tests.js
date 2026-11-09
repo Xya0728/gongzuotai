@@ -135,6 +135,86 @@ test('P1 页面无横向溢出', async () => {
   assert(doc.scrollWidth <= doc.clientWidth + 1, '出现横向滚动：' + doc.scrollWidth + ' > ' + doc.clientWidth);
 });
 
+/* ---------------- P2 日历 ---------------- */
+
+function daysInMonth(mk) {
+  const parts = mk.split('-').map(Number);
+  return new Date(parts[0], parts[1], 0).getDate();
+}
+
+test('P2 健身日历显示部位、动作与次数', async () => {
+  resetData();
+  const t = todayKey();
+  Store.data.fitness.sessions = [
+    {
+      id: 'ts1',
+      date: t,
+      name: '推日',
+      exercises: [
+        { part: '胸', name: '卧推', sets: [{ w: 60, r: 8 }, { w: 60, r: 8 }, { w: 55, r: 10 }] },
+        { part: '手臂', name: '绳索下压', sets: [{ w: 20, r: 12 }] },
+      ],
+    },
+  ];
+  Store.save();
+  Pages.fitness.month = monthKeyOf(t);
+  Pages.fitness.selected = t;
+  showPage('fitness');
+  eq(document.querySelectorAll('.cal-cell[data-date]').length, daysInMonth(monthKeyOf(t)), '日历格子数');
+  const todayCell = document.querySelector('.cal-cell[data-date="' + t + '"]');
+  assert(todayCell, '找不到今天的格子');
+  includes(todayCell.textContent, '胸', '今日格子应显示部位');
+  includes(todayCell.textContent, '手臂', '今日格子应显示部位');
+  includes(mainText(), '卧推', '详情应显示动作');
+  includes(mainText(), '60kg×8', '详情应显示重量和次数');
+  includes(mainText(), '绳索下压', '详情应显示全部动作');
+});
+
+test('P2 健身日历可以切换日期', async () => {
+  resetData();
+  const t = todayKey();
+  Pages.fitness.month = monthKeyOf(t);
+  Pages.fitness.selected = t;
+  showPage('fitness');
+  const other = Pages.fitness.month + '-28';
+  document.querySelector('.cal-cell[data-date="' + other + '"]').click();
+  await tick(150);
+  eq(Pages.fitness.selected, other, '选中的日期');
+  includes(mainText(), '这一天还没有训练记录', '空日期提示');
+});
+
+test('P2 饮食日历显示每日三餐与饮水', async () => {
+  resetData();
+  const t = todayKey();
+  Store.data.diet.meals = [
+    { id: 'dm1', date: t, type: 'breakfast', name: '鸡蛋', portion: '2 个' },
+    { id: 'dm2', date: t, type: 'lunch', name: '米饭', portion: '1 碗' },
+  ];
+  Store.data.diet.water[t] = 750;
+  Store.save();
+  Pages.diet.month = monthKeyOf(t);
+  Pages.diet.date = t;
+  showPage('diet');
+  eq(document.querySelectorAll('.cal-cell.diet-cal').length, daysInMonth(monthKeyOf(t)), '日历格子数');
+  const cell = document.querySelector('.cal-cell[data-date="' + t + '"]');
+  eq(cell.querySelectorAll('.diet-dots i.on').length, 2, '已记录餐数');
+  assert(cell.querySelector('.cal-water'), '饮水标记');
+  includes(mainText(), '鸡蛋', '当天的食物');
+});
+
+test('P2 饮食日历点选其它日期', async () => {
+  resetData();
+  const t = todayKey();
+  Pages.diet.month = monthKeyOf(t);
+  Pages.diet.date = t;
+  showPage('diet');
+  const other = Pages.diet.month + '-15';
+  document.querySelector('.cal-cell[data-date="' + other + '"]').click();
+  await tick(150);
+  eq(Pages.diet.date, other, '选中的日期');
+  eq(Pages.diet.month, monthKeyOf(other), '月份同步');
+});
+
 /* ---------------- 运行 ---------------- */
 
 (async function runAll() {
