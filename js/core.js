@@ -308,6 +308,13 @@ function studyStreak(logs) {
    数据层
    ========================================================= */
 
+function defaultGames() {
+  return [
+    { id: 'game-valorant', title: '无畏契约', platform: 'PC', status: 'playing', rating: 0, note: '' },
+    { id: 'game-hok', title: '王者荣耀', platform: '手机', status: 'playing', rating: 0, note: '' },
+  ];
+}
+
 function defaultData() {
   return {
     version: 1,
@@ -316,6 +323,7 @@ function defaultData() {
       rates: { CNY: 1, USD: 7.2, EUR: 7.85, GBP: 9.15, JPY: 0.048, HKD: 0.92 },
       weeklyGameLimit: 10,
       waterGoal: 2000,
+      seededGames: false,
       waterCup: 250,
       hidden: [],
     },
@@ -345,7 +353,7 @@ function defaultData() {
       ],
       water: {},
     },
-    games: { items: [], sessions: [], devices: [] },
+    games: { items: defaultGames(), sessions: [], devices: [] },
     money: {
       txns: [],
       budgets: {},
@@ -394,6 +402,11 @@ const Store = {
     }
     this.data = mergeDeep(defaultData(), saved && typeof saved === 'object' ? saved : {});
     if (!this.ok) return;
+    if (!this.data.settings.seededGames) {
+      if (!this.data.games.items.length) this.data.games.items = defaultGames();
+      this.data.settings.seededGames = true;
+      this.save();
+    }
     if (!raw) this.save();
     this.loadedAt = new Date();
   },
