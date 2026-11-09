@@ -384,6 +384,7 @@ const Store = {
   data: null,
   ok: true,
   loadedAt: null,
+  lastSavedAt: null,
 
   load() {
     let raw = null;
@@ -415,10 +416,13 @@ const Store = {
     if (!this.ok) return false;
     try {
       localStorage.setItem(DB_KEY, JSON.stringify(this.data));
+      this.lastSavedAt = new Date();
+      updateSaveState();
       return true;
     } catch (err) {
       this.ok = false;
       toast('保存失败：浏览器本地存储不可用', 'err');
+      updateSaveState();
       return false;
     }
   },
@@ -752,6 +756,22 @@ function toast(message, type) {
     el.classList.add('out');
     setTimeout(() => el.remove(), 250);
   }, 2000);
+}
+
+function saveClock(d) {
+  if (!d) return '';
+  return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+}
+
+function updateSaveState() {
+  const text = document.getElementById('save-state-text');
+  if (!text) return;
+  text.textContent = Store.lastSavedAt ? '已保存 ' + saveClock(Store.lastSavedAt) : '等待保存';
+}
+
+function manualSave() {
+  if (!Store.save()) return;
+  toast('已保存 · ' + saveClock(new Date()));
 }
 
 /* ---------- 小工具 ---------- */

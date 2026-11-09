@@ -332,6 +332,39 @@ test('P5 预置游戏只种一次，不会重复', async () => {
   eq(Store.data.games.items.length, 0, '用户删光后不应强行加回来');
 });
 
+/* ---------------- P6 保存 ---------------- */
+
+test('P6 自动保存后侧栏显示保存时间', async () => {
+  resetData();
+  Store.data.memos.push({ id: 'save-test', text: '自动保存', done: false, createdAt: Date.now(), date: todayKey() });
+  Store.save();
+  App.render();
+  const text = document.getElementById('save-state-text');
+  assert(text, '侧栏应有保存状态');
+  includes(text.textContent, '已保存');
+});
+
+test('P6 手动保存按钮可用', async () => {
+  resetData();
+  App.render();
+  Store.lastSavedAt = new Date(2000, 0, 1, 0, 0);
+  const before = Store.lastSavedAt.getTime();
+  document.getElementById('save-now').click();
+  await tick(120);
+  assert(Store.lastSavedAt.getTime() > before, '点击保存后应刷新保存时间');
+  includes(document.getElementById('toast-root').textContent, '已保存');
+});
+
+test('P6 快捷键 Cmd+S 触发保存', async () => {
+  resetData();
+  App.render();
+  Store.lastSavedAt = new Date(2000, 0, 1, 0, 0);
+  const before = Store.lastSavedAt.getTime();
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true, cancelable: true }));
+  await tick(120);
+  assert(Store.lastSavedAt.getTime() > before, '快捷键应触发保存');
+});
+
 /* ---------------- 运行 ---------------- */
 
 (async function runAll() {

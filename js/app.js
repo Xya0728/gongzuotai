@@ -16,6 +16,12 @@ const App = {
       location.replace('#/home');
     }
     window.addEventListener('hashchange', () => this.handleHash());
+    document.addEventListener('keydown', (event) => {
+      if ((event.metaKey || event.ctrlKey) && String(event.key).toLowerCase() === 's') {
+        event.preventDefault();
+        manualSave();
+      }
+    });
     this.handleHash();
 
     if (!Store.ok) {
@@ -103,7 +109,14 @@ const App = {
       '<div class="brand-text"><strong>我的生活工作台</strong><span>只在本机运行</span></div></div>' +
       '<nav class="nav">' + groups + '</nav>' +
       '<div class="sidebar-foot"><div class="today-mini">' + esc(fmtDateCN(todayKey(), true)) + '</div>' +
-      '<div class="muted tiny">数据保存在这台电脑的浏览器里</div></div>';
+      '<div class="save-row"><span class="save-dot"></span>' +
+      '<span class="save-state" id="save-state-text">' +
+      (Store.lastSavedAt ? '已保存 ' + saveClock(Store.lastSavedAt) : '等待保存') + '</span>' +
+      '<button class="btn sm" id="save-now">保存</button></div>' +
+      '<div class="muted tiny mt-8">自动保存已开启 · ⌘S 手动保存</div></div>';
+
+    const saveBtn = sidebar.querySelector('#save-now');
+    if (saveBtn) saveBtn.addEventListener('click', manualSave);
   },
 };
 
