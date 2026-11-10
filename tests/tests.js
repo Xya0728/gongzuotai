@@ -1156,6 +1156,21 @@ test('P20 饮水旁边有咖啡栏，可以加减杯数', async () => {
   eq(Store.data.diet.coffee[t], 1, '减一杯');
 });
 
+/* ---------------- P21 首页简约风格 ---------------- */
+
+test('P21 首页顶部改为浅色简约配色', async () => {
+  resetData();
+  App.render();
+  const hero = document.querySelector('.home-hero');
+  eq(getComputedStyle(hero).color, 'rgb(26, 31, 40)', 'Hero 文字应为深色');
+  const weatherBg = getComputedStyle(document.querySelector('.home-weather')).backgroundColor;
+  assert(/rgba?\(24, 33, 50/.test(weatherBg), '天气卡应是低调的中性底色：' + weatherBg);
+  const clockSize = parseFloat(getComputedStyle(document.querySelector('.hero-clock')).fontSize);
+  assert(clockSize >= 54, '时钟仍然醒目：' + clockSize);
+  const bg = getComputedStyle(hero).backgroundImage;
+  assert(/gradient/.test(bg), '保留轻微渐变层次');
+});
+
 /* ---------------- 运行 ---------------- */
 
 (async function runAll() {

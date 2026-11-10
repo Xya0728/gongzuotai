@@ -184,7 +184,7 @@ Pages.home = {
     }
 
     el.innerHTML =
-      '<section class="home-hero" style="--hero-a:' + tone.a + ';--hero-b:' + tone.b + '">' +
+      '<section class="home-hero" style="--hero-tint:' + tone.a + '">' +
       '<div class="home-hero-main">' +
       '<div class="hero-eyebrow">' + esc(fmtDateCN(t, true)) + ' · ' + esc(greeting()) + '</div>' +
       '<div class="hero-clock" id="home-clock">--:--<small>:--</small></div>' +
