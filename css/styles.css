@@ -1247,3 +1247,28 @@ body.modal-open { overflow: hidden; }
 .img-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .img-pick-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .goal-image-full { width: 100%; display: block; border-radius: 16px; }
+
+/* ---------------- 拖拽排训练 ---------------- */
+
+.drag-grip { width: 16px; flex: 0 0 16px; display: grid; place-items: center; color: var(--faint); cursor: grab; }
+.drag-grip .ic { width: 14px; height: 14px; }
+.routine-item { cursor: grab; }
+.routine-item.dragging { opacity: 0.45; }
+.cal-cell.drop-hover {
+  background: rgba(234, 88, 12, 0.14);
+  border-color: #ea580c;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.18);
+  transform: scale(1.02);
+}
+.cal-tag.plan { background: rgba(124, 58, 237, 0.14); color: #6d28d9; }
+.plan-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.plan-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  border: 1px solid rgba(124, 58, 237, 0.14);
+  background: rgba(124, 58, 237, 0.06);
+}
+.plan-name { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

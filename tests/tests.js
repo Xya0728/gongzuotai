@@ -445,6 +445,47 @@ test('P9 学习分类可以在新增目标时扩展', async () => {
   includes(mainText(), '绘画', '页面应显示新分类');
 });
 
+/* ---------------- P10 拖拽训练计划 ---------------- */
+
+test('P10 训练模板可以拖进日历', async () => {
+  resetData();
+  const t = todayKey();
+  Pages.fitness.month = monthKeyOf(t);
+  Pages.fitness.selected = t;
+  showPage('fitness');
+  const routine = document.querySelector('.routine-item');
+  const cell = document.querySelector('.cal-cell[data-date="' + t + '"]');
+  assert(routine, '应有训练模板');
+  assert(cell, '应有日历格子');
+  const dt = new DataTransfer();
+  routine.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }));
+  cell.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+  cell.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+  await tick(250);
+  const plans = Store.data.fitness.plans || [];
+  eq(plans.length, 1, '应生成一条训练计划');
+  eq(plans[0].date, t, '计划日期');
+  assert(document.querySelector('.plan-row'), '日历详情应显示计划');
+  includes(document.querySelector('.cal-cell[data-date="' + t + '"]').textContent, '计划', '日历格子应有计划标记');
+});
+
+test('P10 同一天不会重复安排同一模板', async () => {
+  resetData();
+  const t = todayKey();
+  Pages.fitness.month = monthKeyOf(t);
+  Pages.fitness.selected = t;
+  showPage('fitness');
+  const routine = document.querySelector('.routine-item');
+  const cell = document.querySelector('.cal-cell[data-date="' + t + '"]');
+  for (let i = 0; i < 2; i++) {
+    const dt = new DataTransfer();
+    routine.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    cell.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    await tick(200);
+  }
+  eq((Store.data.fitness.plans || []).length, 1, '不应重复');
+});
+
 /* ---------------- 运行 ---------------- */
 
 (async function runAll() {
