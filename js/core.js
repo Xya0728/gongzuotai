@@ -58,6 +58,7 @@ const ICONS = {
   droplet: '<path d="M12 3.5s6 6 6 10a6 6 0 0 1-12 0c0-4 6-10 6-10z"/>',
   star: '<path d="m12 3.8 2.5 5.1 5.6.8-4 4 .9 5.6-5-2.7-5 2.7.9-5.6-4-4 5.6-.8z"/>',
   grip: '<circle cx="9" cy="7" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="7" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="17" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="17" r="1.4" fill="currentColor" stroke="none"/>',
+  sparkle: '<path d="M11 3.6 12.6 8l4.4 1.6-4.4 1.6L11 15.6 9.4 11.2 5 9.6 9.4 8z"/><path d="m17.8 14.4.9 2.4 2.4.9-2.4.9-.9 2.4-.9-2.4-2.4-.9 2.4-.9z"/>',
 };
 
 const PRIORITIES = [
@@ -95,6 +96,26 @@ const MEALS = [
 ];
 
 const BODY_PARTS = ['胸', '背', '肩', '腿', '臀', '手臂', '核心', '有氧', '全身'];
+
+/* 智能排程默认偏好（可在今日计划右上角齿轮里改） */
+const SCHEDULE_DEFAULTS = {
+  enabled: true,
+  wake: '07:30',
+  sleep: '23:30',
+  lunchStart: '12:00',
+  lunchEnd: '13:00',
+  dinnerStart: '18:00',
+  dinnerEnd: '19:00',
+  focusMin: 50,
+  breakMin: 10,
+  gymPerWeek: 3,
+  entertainmentMin: 60,
+  fixed: [],
+};
+
+function scheduleDefaults() {
+  return JSON.parse(JSON.stringify(SCHEDULE_DEFAULTS));
+}
 
 /* =========================================================
    工具函数
@@ -187,6 +208,21 @@ function minutesText(min) {
 function hoursText(min) {
   const h = (Number(min) || 0) / 60;
   return (Math.round(h * 10) / 10) + ' 小时';
+}
+
+/* "HH:MM" ↔ 分钟数（当天 0 点起） */
+function timeToMin(value) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(value || '').trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h > 24 || min > 59) return null;
+  return h * 60 + min;
+}
+
+function minToTime(total) {
+  const t = Math.max(0, Math.min(24 * 60 - 1, Math.round(Number(total) || 0)));
+  return pad2(Math.floor(t / 60)) + ':' + pad2(t % 60);
 }
 
 function fmtNum(v, digits = 0) {
@@ -346,9 +382,10 @@ function defaultData() {
       seededGames: false,
       waterCup: 250,
       hidden: [],
+      schedule: scheduleDefaults(),
     },
     memos: [],
-    plan: { items: [] },
+    plan: { items: [], drafts: {} },
     work: { shops: [], orders: [], stock: [], products: [], ads: [] },
     study: { goals: [], logs: [], categories: ['书籍', '乐器', '课程'] },
     fitness: {

@@ -509,6 +509,198 @@ test('P12 首页快捷记录入口都能打开表单', async () => {
   }
 });
 
+/* ---------------- P13 智能排程 ---------------- */
+
+function seedScheduleData() {
+  const t = todayKey();
+  Store.data.study.goals = [
+    {
+      id: 'sg-sch',
+      title: '钢琴基础',
+      category: '乐器',
+      subject: '音乐',
+      targetHours: 20,
+      deadline: addDays(t, 5),
+      status: 'active',
+      note: '',
+    },
+  ];
+  Store.data.study.logs = [{ id: 'sl-sch', date: addDays(t, -2), minutes: 120, goalId: 'sg-sch', note: '' }];
+  Store.data.work.orders = [
+    { id: 'o-sch', date: t, shopId: 's1', product: '贴纸', amount: 120, currency: 'CNY', status: 'pending' },
+  ];
+  Store.data.work.stock = [{ id: 'st-sch', name: '包装盒', qty: 2, safe: 10 }];
+  Store.data.work.products = [{ id: 'p-sch', name: '露营灯', stage: 'research' }];
+  Store.data.games.devices = [
+    { id: 'd-sch', type: 'keyboard', brand: 'Keychron', model: 'Q1', spec: '75%', price: 899 },
+  ];
+  Store.save();
+  return t;
+}
+
+test('P13 今日计划自动准备参考日程草稿', async () => {
+  resetData();
+  const t = seedScheduleData();
+  Pages.plan.date = t;
+  showPage('plan');
+  const draft = Store.data.plan.drafts[t];
+  assert(draft, '应自动生成草稿');
+  assert(draft.items.length >= 4, '建议数量不足：' + draft.items.length);
+  includes(mainText(), '今日参考日程', '页面应显示横幅');
+  includes(mainText(), '待发货订单', '应参考待发货订单');
+
+  const bounds = scheduleBounds(Store.data.settings.schedule);
+  const fixed = scheduleFixedBlocks(t, Store.data.settings.schedule);
+  draft.items.forEach((i) => {
+    const s = timeToMin(i.start);
+    const e = timeToMin(i.end);
+    assert(s !== null && e !== null && e > s, '建议时间不完整：' + i.title);
+    assert(s >= bounds.start && e <= bounds.end, '建议超出作息范围：' + i.title);
+    assert(!!i.reason, '建议应带理由：' + i.title);
+    fixed.forEach((b) => assert(!(s < b.endMin && e > b.startMin), '建议和「' + b.label + '」重叠：' + i.title));
+  });
+  assert(document.querySelector('.tl-block.is-draft'), '时间轴应显示建议色块');
+  assert(document.querySelector('.tl-block.is-fixed'), '时间轴应显示用餐等固定安排');
+});
+
+test('P13 草稿每天只自动生成一次', async () => {
+  resetData();
+  const t = seedScheduleData();
+  Pages.plan.date = t;
+  showPage('plan');
+  const draft = Store.data.plan.drafts[t];
+  const batchId = draft.batchId;
+  const count = draft.items.length;
+  draft.items[0].title = '手动改过的建议';
+  Store.save();
+  App.refresh();
+  eq(Store.data.plan.drafts[t].batchId, batchId, '刷新不应覆盖草稿');
+  eq(Store.data.plan.drafts[t].items.length, count, '建议数量不应变化');
+  eq(Store.data.plan.drafts[t].items[0].title, '手动改过的建议', '手动修改应保留');
+});
+
+test('P13 采用全部写入计划，也可以整批撤销', async () => {
+  resetData();
+  const t = seedScheduleData();
+  Pages.plan.date = t;
+  showPage('plan');
+  const total = Store.data.plan.drafts[t].items.length;
+  document.querySelector('[data-act="adoptAll"]').click();
+  await tick(200);
+  const auto = Store.data.plan.items.filter((i) => i.source === 'auto');
+  assert(auto.length >= 3, '应写入了多条计划：' + auto.length);
+  eq(auto.length, total, '除冲突外都应写入');
+  assert(auto[0].batchId, '计划应记录批次');
+  includes(mainText(), '已采用', '横幅应显示已采用');
+  assert(document.querySelector('.tl-block.kind-plan'), '采用后时间轴应出现计划块');
+
+  document.querySelector('[data-act="undoAll"]').click();
+  await tick(200);
+  eq(Store.data.plan.items.filter((i) => i.source === 'auto').length, 0, '撤销后应移除自动计划');
+  eq(Store.data.plan.drafts[t].status, 'ready', '撤销后建议应回到待定');
+});
+
+test('P13 时间轴可以拖动计划改时间', async () => {
+  resetData();
+  const t = todayKey();
+  Store.data.plan.items = [
+    { id: 'p-drag', date: t, title: '写周报', start: '09:00', end: '10:00', priority: 'mid', done: false, createdAt: Date.now() },
+    { id: 'p-early', date: t, title: '晨跑', start: '06:00', end: '06:30', priority: 'low', done: false, createdAt: Date.now() },
+  ];
+  Store.save();
+  Pages.plan.date = t;
+  Pages.plan.view = 'timeline';
+  showPage('plan');
+  const block = document.querySelector('.tl-block.kind-plan[data-id="p-drag"]');
+  const early = document.querySelector('.tl-block.kind-plan[data-id="p-early"]');
+  const track = document.querySelector('#plan-timeline');
+  assert(block && early && track, '应渲染时间轴计划块');
+  assert(parseFloat(early.style.top) >= 0, '作息外的计划不应被裁掉');
+  const bounds = planDayBounds(
+    Store.data.plan.items,
+    Store.data.plan.drafts[t],
+    scheduleBounds(Store.data.settings.schedule)
+  );
+  const rect = track.getBoundingClientRect();
+  const y = rect.top + ((14 * 60 - bounds.start) / (bounds.end - bounds.start)) * rect.height;
+  const dt = new DataTransfer();
+  block.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+  track.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt, clientY: y }));
+  await tick(200);
+  const item = findById(Store.data.plan.items, 'p-drag');
+  eq(item.start, '14:00', '拖动后的开始时间');
+  eq(item.end, '15:00', '时长保持一小时');
+});
+
+test('P13 建议可以单独调整和忽略', async () => {
+  resetData();
+  const t = todayKey();
+  Pages.plan.date = t;
+  showPage('plan');
+  const draft = Store.data.plan.drafts[t];
+  assert(draft && draft.items.length, '默认数据也应给出训练建议');
+  document.querySelector('[data-act="editDraft"]').click();
+  await tick(150);
+  const form = document.querySelector('#modal-root form');
+  form.elements.title.value = '训练 · 改过的名字';
+  form.elements.mode.value = 'update';
+  form.requestSubmit();
+  await tick(200);
+  assert(draft.items.some((i) => i.title === '训练 · 改过的名字'), '调整应更新建议');
+  eq(Store.data.plan.items.length, 0, '只更新建议时不应写入计划');
+
+  document.querySelector('[data-act="ignoreOne"]').click();
+  await tick(200);
+  eq(Store.data.plan.drafts[t].status, 'discarded', '全部忽略后不再显示');
+  assert(mainText().indexOf('今日参考日程') === -1, '丢弃后横幅应隐藏');
+});
+
+test('P13 偏好齿轮保存后，生成会避开固定安排', async () => {
+  resetData();
+  const t = seedScheduleData();
+  Pages.plan.date = t;
+  showPage('plan');
+  document.querySelector('[data-act="prefs"]').click();
+  await tick(150);
+  const form = document.querySelector('#modal-root form');
+  form.elements.wake.value = '08:00';
+  form.elements.sleep.value = '22:00';
+  form.elements.focusMin.value = '45';
+  document.querySelector('[data-add-fixed]').click();
+  const rows = form.querySelectorAll('[data-fixed-row]');
+  const row = rows[rows.length - 1];
+  row.querySelector('[name="fixedStart"]').value = '09:00';
+  row.querySelector('[name="fixedEnd"]').value = '11:00';
+  row.querySelector('[name="fixedLabel"]').value = '开会';
+  form.requestSubmit();
+  await tick(250);
+
+  const prefs = Store.data.settings.schedule;
+  eq(prefs.wake, '08:00', '起床时间');
+  eq(prefs.sleep, '22:00', '睡觉时间');
+  eq(prefs.focusMin, 45, '专注时长');
+  eq(prefs.fixed.length, 1, '固定安排');
+  eq(prefs.fixed[0].label, '开会');
+
+  Scheduler.regenerate(t);
+  const draft = Store.data.plan.drafts[t];
+  assert(draft.items.length, '重新生成应有建议');
+  draft.items.forEach((i) => {
+    const s = timeToMin(i.start);
+    const e = timeToMin(i.end);
+    assert(!(s < 11 * 60 && e > 9 * 60), '不应排进开会时段：' + i.title);
+    assert(s >= 8 * 60 && e <= 22 * 60, '应在新作息内：' + i.title);
+  });
+
+  App.refresh();
+  document.querySelector('[data-act="discard"]').click();
+  await tick(200);
+  eq(Store.data.plan.drafts[t].status, 'discarded', '丢弃状态');
+  App.render();
+  eq(Store.data.plan.drafts[t].status, 'discarded', '丢弃后刷新不应自动重生成');
+  assert(mainText().indexOf('今日参考日程') === -1, '丢弃后横幅应隐藏');
+});
+
 /* ---------------- 运行 ---------------- */
 
 (async function runAll() {
