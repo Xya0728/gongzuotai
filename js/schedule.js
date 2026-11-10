@@ -73,6 +73,11 @@ function scheduleNorm(text) {
     .toLowerCase();
 }
 
+/* 比较标题时忽略数字，避免「处理 3 个订单」和「处理 2 个订单」被当成两件事 */
+function scheduleTitleKey(text) {
+  return scheduleNorm(text).replace(/[0-9]+/g, '');
+}
+
 /* 与当天已有安排/固定安排是否冲突；返回冲突说明或空字符串 */
 function scheduleConflictText(date, start, end) {
   const s = timeToMin(start);
@@ -111,7 +116,7 @@ const Scheduler = {
     const dayItems = d.plan.items.filter((i) => i.date === date);
     const existingTitles = {};
     dayItems.forEach((i) => {
-      existingTitles[scheduleNorm(i.title)] = true;
+      existingTitles[scheduleTitleKey(i.title)] = true;
       const s = timeToMin(i.start);
       const e = timeToMin(i.end);
       if (s !== null && e !== null && e > s) busy.push([s, e]);
@@ -265,7 +270,7 @@ const Scheduler = {
     const counts = {};
     for (const c of candidates) {
       if (chosen.length >= SCHEDULE_MAX_ITEMS) break;
-      if (existingTitles[scheduleNorm(c.title)]) continue;
+      if (existingTitles[scheduleTitleKey(c.title)]) continue;
       const cap = SCHEDULE_MAX_PER_MODULE[c.module] || 1;
       if ((counts[c.module] || 0) >= cap) continue;
       const duration = Math.max(20, Math.round(c.duration / 5) * 5);

@@ -1817,3 +1817,101 @@ body.modal-open { overflow: hidden; }
   .home-weather { width: auto; flex-basis: auto; }
   .hero-clock { font-size: 52px; }
 }
+
+/* ---------------- 今日计划操作栏与模块面板 ---------------- */
+
+.plan-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.42);
+  box-shadow: inset 0 1px 0 #fff;
+  backdrop-filter: blur(14px);
+}
+.plan-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #374151;
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.plan-action:hover { background: rgba(255, 255, 255, 0.72); }
+.plan-action .ic { width: 14px; height: 14px; color: #7c3aed; }
+.plan-icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.plan-icon:hover { background: rgba(255, 255, 255, 0.72); color: var(--ink); }
+.plan-icon .ic { width: 15px; height: 15px; }
+.plan-actions-sep { width: 1px; height: 18px; margin: 0 2px; background: var(--line); }
+.plan-actions .btn.primary.sm { height: 30px; }
+
+.palette-card .card-head { align-items: center; }
+.palette-tabs { margin-bottom: 0; }
+.palette-tabs .tab { height: 28px; padding: 0 10px; font-size: 12px; }
+.palette-count { margin-left: 5px; font-size: 10px; opacity: 0.62; }
+.palette-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+.palette-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 9px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  background: rgba(255, 255, 255, 0.44);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: grab;
+  transition: background 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+}
+.palette-item:hover {
+  background: rgba(255, 255, 255, 0.72);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px -18px rgba(23, 31, 48, 0.7);
+}
+.palette-item.dragging { opacity: 0.45; }
+.palette-ico {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+}
+.palette-ico .ic { width: 16px; height: 16px; }
+.palette-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.palette-body b { font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-body span { font-size: 10.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-item .drag-grip { opacity: 0.5; }
+.palette-add { justify-content: center; border-style: dashed; }
+.palette-empty { grid-column: 1 / -1; padding: 14px 10px; text-align: center; }
+
+.tl-block.m-diet { border-color: rgba(13, 148, 136, 0.26); background: rgba(13, 148, 136, 0.13); color: #0f766e; }
+
+@media (max-width: 760px) {
+  .plan-actions { width: 100%; justify-content: flex-end; }
+  .palette-card .card-head { flex-direction: column; align-items: flex-start; }
+  .palette-tabs { width: 100%; }
+  .palette-grid { grid-template-columns: 1fr; }
+}

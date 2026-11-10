@@ -670,19 +670,25 @@ test('P13 建议可以单独调整和忽略', async () => {
   showPage('plan');
   const draft = Store.data.plan.drafts[t];
   assert(draft && draft.items.length, '默认数据也应给出训练建议');
-  document.querySelector('[data-act="editDraft"]').click();
+  const ghost = document.querySelector('.tl-block.is-draft');
+  assert(ghost, '时间轴上应有建议块');
+  ghost.click();
   await tick(150);
   const form = document.querySelector('#modal-root form');
   form.elements.title.value = '训练 · 改过的名字';
   form.elements.mode.value = 'update';
   form.requestSubmit();
-  await tick(200);
+  await tick(220);
   assert(draft.items.some((i) => i.title === '训练 · 改过的名字'), '调整应更新建议');
   eq(Store.data.plan.items.length, 0, '只更新建议时不应写入计划');
 
-  document.querySelector('[data-act="ignoreOne"]').click();
-  await tick(200);
-  eq(Store.data.plan.drafts[t].status, 'discarded', '全部忽略后不再显示');
+  document.querySelector('.tl-block.is-draft').click();
+  await tick(150);
+  const form2 = document.querySelector('#modal-root form');
+  form2.elements.mode.value = 'ignore';
+  form2.requestSubmit();
+  await tick(220);
+  eq(Store.data.plan.drafts[t].status, 'discarded', '忽略最后一条后不再显示');
   assert(mainText().indexOf('今日参考日程') === -1, '丢弃后横幅应隐藏');
 });
 
@@ -1001,6 +1007,95 @@ test('P18 首页顶部有时钟、天气和渐变色调', async () => {
   assert(clock.textContent !== before, '时钟应每秒更新');
   includes(document.querySelector('#home-weather').textContent, '汕头', '天气城市');
   assert(document.querySelector('#weather-temp'), '应有温度');
+});
+
+/* ---------------- P19 今日计划交互 ---------------- */
+
+test('P19 顶部操作栏更紧凑，长按空白时间段加计划', async () => {
+  resetData();
+  const t = todayKey();
+  Pages.plan.date = t;
+  Pages.plan.view = 'timeline';
+  showPage('plan');
+  const actions = document.querySelector('.plan-actions');
+  assert(actions, '应有顶部操作栏');
+  eq(actions.querySelectorAll('[data-act]').length, 3, '操作栏三个入口');
+  const headings = Array.prototype.map.call(document.querySelectorAll('.card h2'), (h) => h.textContent);
+  assert(headings.indexOf('未排时间') === -1, '不应再有未排时间那一栏');
+  includes(mainText(), '可拖拽模块', '底部模块面板');
+
+  const bounds = planDayBounds(
+    Store.data.plan.items,
+    Store.data.plan.drafts[t],
+    scheduleBounds(Store.data.settings.schedule)
+  );
+  const track = document.querySelector('#plan-timeline');
+  const rect = track.getBoundingClientRect();
+  const y = rect.top + ((10 * 60 - bounds.start) / (bounds.end - bounds.start)) * rect.height;
+  track.dispatchEvent(
+    new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientY: y, clientX: rect.left + 60 })
+  );
+  await tick(650);
+  const form = document.querySelector('#modal-root form');
+  assert(form, '长按应弹出添加计划');
+  eq(form.elements.start.value, '10:00', '开始时间');
+  eq(form.elements.end.value, '11:00', '结束时间');
+  closeModal();
+});
+
+test('P19 底部模块可以拖进日程，饮食可添加', async () => {
+  resetData();
+  const t = todayKey();
+  Store.data.study.goals = [
+    { id: 'g19', title: '钢琴基础', category: '乐器', deadline: addDays(t, 5), note: '' },
+  ];
+  Store.save();
+  Pages.plan.date = t;
+  Pages.plan.view = 'timeline';
+  Pages.plan.paletteTab = 'study';
+  showPage('plan');
+  eq(document.querySelectorAll('.palette-tabs .tab').length, 5, '学习/健身/饮食/工作/娱乐');
+
+  const dropAt = async (min) => {
+    const bounds = planDayBounds(
+      Store.data.plan.items,
+      Store.data.plan.drafts[t],
+      scheduleBounds(Store.data.settings.schedule)
+    );
+    const track = document.querySelector('#plan-timeline');
+    const rect = track.getBoundingClientRect();
+    const y = rect.top + ((min - bounds.start) / (bounds.end - bounds.start)) * rect.height;
+    const card = document.querySelector('.palette-item[draggable="true"]');
+    assert(card, '应有可拖拽模块');
+    const dt = new DataTransfer();
+    card.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+    track.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt, clientY: y }));
+    await tick(250);
+  };
+
+  await dropAt(15 * 60);
+  const study = Store.data.plan.items.filter((i) => i.source === 'module')[0];
+  assert(study, '学习模块应生成计划');
+  eq(study.title, '学习 · 钢琴基础', '学习计划标题');
+  eq(study.start, '15:00', '学习计划时间');
+
+  document.querySelector('[data-tab="fitness"]').click();
+  await tick(180);
+  await dropAt(16 * 60);
+  const fitness = Store.data.plan.items.filter((i) => i.title.indexOf('训练 · ') === 0)[0];
+  assert(fitness, '健身模块应生成计划');
+  includes(fitness.title, '推日', '拖入的是模板名');
+
+  document.querySelector('[data-tab="diet"]').click();
+  await tick(180);
+  const addDiet = document.querySelector('[data-act="addDietPlan"]');
+  assert(addDiet, '应有添加饮食入口');
+  addDiet.click();
+  await tick(180);
+  const form = document.querySelector('#modal-root form');
+  assert(form, '应打开添加搭配');
+  includes(document.querySelector('#modal-root .modal-head h3').textContent, '添加搭配');
+  closeModal();
 });
 
 /* ---------------- 运行 ---------------- */

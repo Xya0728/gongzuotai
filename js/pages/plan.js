@@ -39,9 +39,12 @@ Pages.plan = {
           '<button class="icon-btn" data-act="next" aria-label="后一天">' + icon('chevronR') + '</button>' +
           (isToday ? '' : '<button class="btn sm" data-act="today">回到今天</button>') +
           '</div>' +
-          '<button class="btn" data-act="smart">' + icon('sparkle') + '智能排程</button>' +
-          '<button class="icon-btn" data-act="prefs" aria-label="排程偏好" title="排程偏好">' + icon('sliders') + '</button>' +
-          '<button class="btn primary" data-act="add">' + icon('plus') + '添加计划</button>'
+          '<div class="plan-actions">' +
+          '<button class="plan-action" data-act="smart">' + icon('sparkle') + '智能排程</button>' +
+          '<button class="plan-icon" data-act="prefs" aria-label="排程偏好" title="排程偏好">' + icon('sliders') + '</button>' +
+          '<span class="plan-actions-sep"></span>' +
+          '<button class="btn primary sm" data-act="add">' + icon('plus') + '添加计划</button>' +
+          '</div>'
       ) +
 
       this.draftBanner(draft, draftOpen) +
@@ -63,7 +66,7 @@ Pages.plan = {
       '<button class="tab' + (this.view === 'list' ? ' active' : '') + '" data-act="view" data-view="list">清单</button>' +
       '</div>' +
       (this.view === 'timeline'
-        ? '<div class="tiny muted">拖动色块可以改时间；点色块编辑</div>'
+        ? '<div class="tiny muted">拖动色块改时间 · 长按空白时间段添加计划 · 点色块编辑</div>'
         : '<div class="tiny muted">按时间排序，共 ' + all.length + ' 项</div>') +
       '</div>' +
 
@@ -71,9 +74,8 @@ Pages.plan = {
         ? this.timelineHtml(date, all, draft, bounds, isToday)
         : this.listHtml(all)) +
 
-      (this.view === 'timeline' && all.some((i) => !i.start || !i.end) ? this.untimedHtml(all) : '') +
-
-      (draft && draft.status !== 'discarded' && draft.items.some((i) => !i.ignored) ? this.draftRowsHtml(draft) : '');
+      (this.view === 'timeline' ? '' : '') +
+      this.paletteHtml(date);
 
     /* ---- 事件 ---- */
     bind(el, {
@@ -92,6 +94,24 @@ Pages.plan = {
       view(node) {
         Pages.plan.view = node.dataset.view;
         App.refresh();
+      },
+      paletteTab(node) {
+        Pages.plan.paletteTab = node.dataset.tab;
+        App.refresh();
+      },
+      paletteAdd(node) {
+        if (Date.now() - (Pages.plan._dragAt || 0) < 400) return;
+        let payload = null;
+        try {
+          payload = JSON.parse(node.dataset.payload || '{}');
+        } catch (err) {
+          payload = null;
+        }
+        if (!payload || !payload.title) return;
+        openPlanModal(null, Pages.plan.date, { title: payload.title });
+      },
+      addDietPlan() {
+        openFoodModal(Pages.plan.date, 'lunch');
       },
       add() {
         openPlanModal(null, Pages.plan.date);
@@ -205,6 +225,7 @@ Pages.plan = {
     });
 
     this.setupTimelineDrag(el, draft, bounds);
+    this.setupTimelineLongPress(el, date, bounds);
   },
 
   /* ---------------- 参考日程横幅 ---------------- */
@@ -263,7 +284,7 @@ Pages.plan = {
         title: i.title,
         startMin: timeToMin(i.start),
         endMin: timeToMin(i.end),
-        module: '',
+        module: i.module || '',
       }));
 
     const ghost = draft && draft.status !== 'discarded'
@@ -401,74 +422,158 @@ Pages.plan = {
     );
   },
 
-  /* ---------------- 没排时间的计划 ---------------- */
-  untimedHtml(all) {
-    const list = all.filter((i) => !i.start || !i.end);
+  /* ---------------- 可拖拽模块 ---------------- */
+
+  paletteHtml(date) {
+    const tab = this.paletteTab || 'study';
+    const groups = this.paletteGroups(date);
+    const tabs = [
+      ['study', '学习'],
+      ['fitness', '健身'],
+      ['diet', '饮食'],
+      ['work', '工作'],
+      ['rest', '娱乐'],
+    ];
+    const items = groups[tab] || [];
+
     return (
-      '<section class="card mt-12">' +
-      '<div class="card-head"><h2>未排时间</h2><span class="tiny muted">' + list.length + ' 项</span></div>' +
-      '<div class="list">' +
-      list
+      '<section class="card palette-card mt-12">' +
+      '<div class="card-head"><div><h2>可拖拽模块</h2>' +
+      '<p class="card-sub">按住卡片拖到日程表的空白时间；点卡片也能手动加计划</p></div>' +
+      '<div class="tabs palette-tabs">' +
+      tabs
         .map(
-          (i) =>
-            '<div class="item">' +
-            '<div class="item-body"><div class="item-title">' + esc(i.title) + '</div>' +
-            '<div class="item-meta">' + chipsFor(PRIORITIES, i.priority) + '</div></div>' +
-            '<div class="item-actions">' +
-            '<button class="icon-btn" data-act="edit" data-id="' + i.id + '" aria-label="编辑">' + icon('edit') + '</button>' +
-            '</div></div>'
+          (t) =>
+            '<button class="tab' + (tab === t[0] ? ' active' : '') + '" data-act="paletteTab" data-tab="' + t[0] + '">' +
+            t[1] + '<span class="palette-count">' + (groups[t[0]] || []).length + '</span></button>'
         )
         .join('') +
+      '</div></div>' +
+      '<div class="palette-grid">' +
+      (items.length
+        ? items.map((item) => this.paletteItem(item)).join('')
+        : '<div class="palette-empty tiny muted">' + esc(this.paletteEmptyText(tab)) + '</div>') +
+      (tab === 'diet'
+        ? '<button type="button" class="palette-item palette-add" data-act="addDietPlan">' +
+          '<span class="palette-ico">' + icon('plus') + '</span>' +
+          '<span class="palette-body"><b>添加饮食</b><span>把食物排进当天搭配</span></span></button>'
+        : '') +
       '</div></section>'
     );
   },
 
-  /* ---------------- 参考日程逐条列表 ---------------- */
-  draftRowsHtml(draft) {
-    const rows = draft.items
-      .filter((i) => !i.ignored)
-      .map((i) => {
-        const time = minToTime(timeToMin(i.start)) + '–' + minToTime(timeToMin(i.end));
-        if (i.adopted) {
-          return (
-            '<div class="draft-row is-adopted">' +
-            '<span class="draft-time">' + time + '</span>' +
-            '<div class="draft-body"><div class="draft-name">' + esc(i.title) + '</div>' +
-            '<div class="draft-reason">' + esc(i.reason) + '</div></div>' +
-            '<span class="chip green">已加入</span>' +
-            '<div class="draft-actions"><button class="btn ghost sm" data-act="undoOne" data-id="' + i.id + '">撤销</button></div>' +
-            '</div>'
-          );
-        }
-        if (i.skipped) {
-          return (
-            '<div class="draft-row is-skipped">' +
-            '<span class="draft-time">' + time + '</span>' +
-            '<div class="draft-body"><div class="draft-name">' + esc(i.title) + '</div>' +
-            '<div class="draft-reason">' + esc(i.skipReason || '与已有安排冲突') + '</div></div>' +
-            '<div class="draft-actions"><button class="btn ghost sm" data-act="ignoreOne" data-id="' + i.id + '">忽略</button></div>' +
-            '</div>'
-          );
-        }
-        return (
-          '<div class="draft-row">' +
-          '<span class="draft-time">' + time + '</span>' +
-          '<div class="draft-body"><div class="draft-name">' + esc(i.title) + '</div>' +
-          '<div class="draft-reason">' + esc(i.reason) + '</div></div>' +
-          '<div class="draft-actions">' +
-          '<button class="btn sm" data-act="adoptOne" data-id="' + i.id + '">采用</button>' +
-          '<button class="btn ghost sm" data-act="editDraft" data-id="' + i.id + '">调整</button>' +
-          '<button class="btn ghost sm" data-act="ignoreOne" data-id="' + i.id + '">忽略</button>' +
-          '</div></div>'
-        );
-      })
-      .join('');
-
+  paletteItem(item) {
+    const mod = findById(MODULES, item.module);
+    const color = mod ? mod.color : 'var(--accent)';
+    const soft = mod ? mod.soft : 'var(--accent-soft)';
     return (
-      '<section class="card mt-12 draft-card">' +
-      '<div class="card-head"><h2>参考日程</h2><span class="tiny muted">逐条采用，或点「调整」改时间</span></div>' +
-      '<div class="draft-list">' + rows + '</div></section>'
+      '<div class="palette-item" draggable="true" data-act="paletteAdd" ' +
+      'data-payload="' + esc(JSON.stringify(item.payload)) + '" title="拖到日程表，或点一下手动添加">' +
+      '<span class="palette-ico" style="background:' + soft + ';color:' + color + '">' + icon(item.icon || (mod ? mod.icon : 'plus')) + '</span>' +
+      '<span class="palette-body"><b>' + esc(item.title) + '</b><span>' + esc(item.meta || '') + '</span></span>' +
+      '<span class="drag-grip" aria-hidden="true">' + icon('grip') + '</span>' +
+      '</div>'
     );
+  },
+
+  paletteEmptyText(tab) {
+    if (tab === 'study') return '还没有学习项目，去学习计划加一个';
+    if (tab === 'fitness') return '还没有训练模板，去健身页新建推日 / 拉日';
+    if (tab === 'diet') return '还没有饮食搭配，可以点下面的「添加饮食」';
+    if (tab === 'work') return '没有待发货、库存预警或选品要做';
+    return '还没有设备，去游戏娱乐添加';
+  },
+
+  paletteGroups(date) {
+    const d = Store.data;
+    const t = date;
+    const groups = { study: [], fitness: [], diet: [], work: [], rest: [] };
+
+    (d.study.goals || []).forEach((g) => {
+      const days = g.deadline ? diffDays(t, g.deadline) : null;
+      groups.study.push({
+        title: g.title,
+        meta:
+          g.category +
+          (days === null ? ' · 没有截止日' : days < 0 ? ' · 已过期' : ' · ' + days + ' 天后截止'),
+        icon: 'book',
+        module: 'study',
+        payload: {
+          title: '学习 · ' + g.title,
+          duration: 50,
+          module: 'study',
+          priority: days !== null && days <= 3 ? 'high' : 'mid',
+        },
+      });
+    });
+
+    (d.fitness.routines || []).forEach((r) => {
+      const exs = r.exercises || [];
+      const parts = fitnessParts(exs);
+      groups.fitness.push({
+        title: r.name,
+        meta: (parts.length ? parts.join(' / ') : r.note || '训练') + (exs.length ? ' · ' + exs.length + ' 个动作' : ''),
+        icon: 'dumbbell',
+        module: 'fitness',
+        payload: { title: '训练 · ' + r.name, duration: 60, module: 'fitness', priority: 'mid' },
+      });
+    });
+
+    MEALS.forEach((meal) => {
+      const items = d.diet.meals.filter((m) => m.date === date && m.type === meal.value);
+      groups.diet.push({
+        title: meal.label,
+        meta: items.length
+          ? items.map((m) => m.name).join('、') + ' · ' + sumBy(items, (m) => Number(m.calories) || 0) + ' kcal'
+          : '还没排搭配',
+        icon: 'bowl',
+        module: 'diet',
+        payload: { title: meal.label, duration: 30, module: 'diet', priority: 'mid' },
+      });
+    });
+
+    const pending = (d.work.orders || []).filter((o) => o.status === 'pending');
+    if (pending.length) {
+      groups.work.push({
+        title: '处理 ' + pending.length + ' 个待发货订单',
+        meta: '跨境工作 · 待发货',
+        icon: 'briefcase',
+        module: 'work',
+        payload: { title: '处理 ' + pending.length + ' 个待发货订单', duration: 45, module: 'work', priority: 'high' },
+      });
+    }
+    const low = (d.work.stock || []).filter((s) => Number(s.qty) <= Number(s.safe));
+    if (low.length) {
+      groups.work.push({
+        title: '补货：' + low.slice(0, 2).map((s) => s.name).join('、'),
+        meta: low.length + ' 项库存低于安全线',
+        icon: 'briefcase',
+        module: 'work',
+        payload: { title: '补货：' + low.slice(0, 2).map((s) => s.name).join('、'), duration: 45, module: 'work', priority: 'mid' },
+      });
+    }
+    const research = (d.work.products || []).filter((p) => p.stage === 'research' || p.stage === 'testing');
+    if (research.length) {
+      groups.work.push({
+        title: '选品：' + research[0].name,
+        meta: research[0].stage === 'testing' ? '测试阶段' : '调研阶段',
+        icon: 'briefcase',
+        module: 'work',
+        payload: { title: '选品：' + research[0].name, duration: 45, module: 'work', priority: 'mid' },
+      });
+    }
+
+    if ((d.games.devices || []).length) {
+      groups.rest.push({
+        title: '娱乐放松',
+        meta: '设备 ' + d.games.devices.length + ' 件 · 留一段休息时间',
+        icon: 'gamepad',
+        module: 'rest',
+        payload: { title: '娱乐放松', duration: 60, module: 'rest', priority: 'low' },
+      });
+    }
+
+    return groups;
   },
 
   /* ---------------- 拖动时间轴改时间 ---------------- */
@@ -485,18 +590,42 @@ Pages.plan = {
       node.addEventListener('dragend', () => node.classList.remove('dragging'));
     });
 
+    el.querySelectorAll('.palette-item[draggable="true"]').forEach((node) => {
+      node.addEventListener('dragstart', (e) => {
+        Pages.plan._dragAt = Date.now();
+        node.classList.add('dragging');
+        if (!e.dataTransfer) return;
+        e.dataTransfer.effectAllowed = 'copy';
+        e.dataTransfer.setData('application/x-xya-module', node.dataset.payload || '{}');
+        e.dataTransfer.setData('text/plain', 'module');
+      });
+      node.addEventListener('dragend', () => node.classList.remove('dragging'));
+    });
+
     track.addEventListener('dragover', (e) => e.preventDefault());
     track.addEventListener('drop', (e) => {
       e.preventDefault();
+      let modulePayload = null;
+      try {
+        const mime = e.dataTransfer.getData('application/x-xya-module');
+        if (mime) modulePayload = JSON.parse(mime);
+      } catch (err) {
+        modulePayload = null;
+      }
       const raw = e.dataTransfer.getData('text/plain') || '';
       const parts = raw.split('|');
-      if (parts.length !== 2) return;
+      if (parts.length !== 2 && !modulePayload) return;
       const kind = parts[0];
       const id = parts[1];
       const rect = track.getBoundingClientRect();
       const offset = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
       const span = bounds.end - bounds.start;
       let startMin = bounds.start + Math.round(((offset / rect.height) * span) / 15) * 15;
+
+      if (modulePayload) {
+        addPalettePlan(Pages.plan.date, modulePayload, startMin, bounds);
+        return;
+      }
 
       if (kind === 'plan') {
         const item = findById(Store.data.plan.items, id);
@@ -530,7 +659,74 @@ Pages.plan = {
       }
     });
   },
+
+  /* ---------------- 长按空白时间段添加计划 ---------------- */
+  setupTimelineLongPress(el, date, bounds) {
+    const track = el.querySelector('#plan-timeline');
+    if (!track) return;
+    let timer = null;
+    let startY = 0;
+    let startX = 0;
+    const clear = () => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+    };
+    const minuteAt = (clientY) => {
+      const rect = track.getBoundingClientRect();
+      const span = bounds.end - bounds.start;
+      const offset = Math.max(0, Math.min(rect.height, clientY - rect.top));
+      return bounds.start + Math.round(((offset / rect.height) * span) / 15) * 15;
+    };
+
+    track.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || e.target.closest('.tl-block')) return;
+      startY = e.clientY;
+      startX = e.clientX;
+      clear();
+      timer = setTimeout(() => {
+        timer = null;
+        const start = Math.max(bounds.start, Math.min(minuteAt(startY), bounds.end - 30));
+        const end = Math.min(bounds.end, start + 60);
+        openPlanModal(null, date, { start: minToTime(start), end: minToTime(end) });
+      }, 550);
+    });
+    track.addEventListener('pointermove', (e) => {
+      if (!timer) return;
+      if (Math.abs(e.clientY - startY) > 8 || Math.abs(e.clientX - startX) > 8) clear();
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => track.addEventListener(ev, clear));
+  },
 };
+
+/* 把底部模块拖进日程表 */
+function addPalettePlan(date, payload, startMin, bounds) {
+  const duration = Math.max(15, Math.min(180, Number(payload.duration) || 30));
+  const start = Math.max(bounds.start, Math.min(startMin, bounds.end - duration));
+  const end = Math.min(bounds.end, start + duration);
+  const dup = Store.data.plan.items.some(
+    (i) => i.date === date && scheduleTitleKey(i.title) === scheduleTitleKey(payload.title)
+  );
+  if (dup) {
+    toast('今天已经有「' + payload.title + '」');
+    return false;
+  }
+  Store.data.plan.items.push({
+    id: uid(),
+    date: date,
+    title: payload.title,
+    start: minToTime(start),
+    end: minToTime(end),
+    priority: payload.priority || 'mid',
+    note: '',
+    module: payload.module || '',
+    source: 'module',
+    createdAt: Date.now(),
+  });
+  Store.save();
+  toast('已加入「' + payload.title + '」 ' + minToTime(start) + '–' + minToTime(end));
+  App.refresh();
+  return true;
+}
 
 /* =========================================================
    智能排程：采用 / 撤销
@@ -636,21 +832,22 @@ function finalizeDraftStatus(draft) {
    计划新增 / 编辑
    ========================================================= */
 
-function openPlanModal(item, date) {
+function openPlanModal(item, date, preset) {
   const editing = !!item;
+  const p = preset || {};
   openModal({
     title: editing ? '编辑计划' : '添加计划',
-    subtitle: editing ? '' : '把要做的事写清楚，时间可以留空',
+    subtitle: editing ? '' : p.start ? '已按长按的时间填好，改完保存即可' : '把要做的事写清楚，时间可以留空',
     size: 'small',
     body:
-      fInput('title', '要做什么', { value: editing ? item.title : '', placeholder: '例如：处理 3 个待发货订单', required: true, maxlength: 80 }) +
+      fInput('title', '要做什么', { value: editing ? item.title : p.title || '', placeholder: '例如：处理 3 个待发货订单', required: true, maxlength: 80 }) +
       fRow(
         fDate('date', '日期', editing ? item.date : date || todayKey()),
-        fSelect('priority', '优先级', PRIORITIES, editing ? item.priority : 'mid')
+        fSelect('priority', '优先级', PRIORITIES, editing ? item.priority : p.priority || 'mid')
       ) +
       fRow(
-        fTime('start', '开始时间（可不填）', editing ? item.start : ''),
-        fTime('end', '结束时间（可不填）', editing ? item.end : '')
+        fTime('start', '开始时间（可不填）', editing ? item.start : p.start || ''),
+        fTime('end', '结束时间（可不填）', editing ? item.end : p.end || '')
       ) +
       fTextarea('note', '备注', editing ? item.note : '', { rows: 2, placeholder: '补充说明，可不填' }),
     onSubmit(data) {
@@ -712,6 +909,7 @@ function openDraftItemModal(date, draft, item) {
           [
             { value: 'update', label: '只更新建议' },
             { value: 'adopt', label: '保存并加入计划' },
+            { value: 'ignore', label: '忽略这条建议' },
           ],
           'update'
         )
@@ -730,6 +928,14 @@ function openDraftItemModal(date, draft, item) {
       item.start = data.start;
       item.end = data.end;
       item.priority = data.priority || 'mid';
+      if (data.mode === 'ignore') {
+        item.ignored = true;
+        finalizeDraftStatus(draft);
+        Store.save();
+        App.refresh();
+        toast('已忽略这条建议');
+        return;
+      }
       if (data.mode === 'adopt') {
         if (!adoptDraftItem(date, draft, item)) {
           toast(item.skipReason || '加入失败，换个时间试试', 'err');
