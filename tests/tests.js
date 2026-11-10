@@ -1241,6 +1241,57 @@ test('P23 天气状态对应不同背景', async () => {
   eq(homeWeatherText(61), '小雨');
 });
 
+/* ---------------- P24 蛋白质部件 ---------------- */
+
+test('P24 蛋白质按食物和分量估算', async () => {
+  eq(estimateFoodProtein('鸡胸肉', '100 g'), 31, '鸡胸肉');
+  eq(estimateFoodProtein('鸡蛋', '2 个'), 12, '两个鸡蛋');
+  assert(estimateFoodProtein('米饭', '1 碗') >= 4, '米饭蛋白质');
+  assert(estimateFoodProtein('牛肉', '150 g') >= 25, '牛肉蛋白质');
+});
+
+test('P24 热量与蛋白质并排显示', async () => {
+  resetData();
+  const t = todayKey();
+  Store.data.body.metrics = [{ id: 'bm24', date: t, weight: 70 }];
+  Store.data.diet.meals = [
+    { id: 'dm24-1', date: t, type: 'breakfast', name: '燕麦', portion: '50 g', calories: 300, protein: 30 },
+    { id: 'dm24-2', date: t, type: 'lunch', name: '鸡胸肉', portion: '100 g', calories: 400, protein: 40 },
+  ];
+  Store.data.settings.calorieGoal = 1500;
+  Store.data.settings.proteinGoal = 140;
+  Store.save();
+  Pages.diet.date = t;
+  Pages.diet.month = monthKeyOf(t);
+  showPage('diet');
+  const macros = document.querySelector('.diet-macros');
+  assert(macros, '应有并排的宏量营养素区');
+  eq(macros.children.length, 2, '热量 + 蛋白质两张卡');
+  includes(document.querySelector('.calorie-card').textContent, '700', '热量');
+  const protein = document.querySelector('.protein-card');
+  includes(protein.textContent, '70', '蛋白质克数');
+  includes(protein.textContent, '140', '蛋白质目标');
+  includes(protein.textContent, '还差 70 g', '剩余蛋白质');
+  assert(document.querySelector('.protein-bar i'), '应有蛋白质进度条');
+});
+
+test('P24 蛋白质目标可以保存', async () => {
+  resetData();
+  const t = todayKey();
+  Store.data.body.metrics = [{ id: 'bm24-2', date: t, weight: 70 }];
+  Store.save();
+  Pages.diet.date = t;
+  Pages.diet.month = monthKeyOf(t);
+  showPage('diet');
+  includes(document.querySelector('.protein-card').textContent, '112', '默认按体重 1.6g/kg');
+  const form = document.querySelector('#body-form');
+  form.elements.proteinGoal.value = '150';
+  form.requestSubmit();
+  await tick(220);
+  eq(Store.data.settings.proteinGoal, 150, '保存目标');
+  includes(document.querySelector('.protein-card').textContent, '150', '页面更新');
+});
+
 /* ---------------- 运行 ---------------- */
 
 (async function runAll() {

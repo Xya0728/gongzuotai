@@ -85,6 +85,77 @@ function estimateFoodCalories(name, portion, detail) {
   return Math.max(0, Math.round(kcal * detailKcalFactor(detail)));
 }
 
+const FOOD_PROTEIN_TABLE = [
+  { keys: ['鸡腿'], per100: 18, unit: 20, gramsPerUnit: 110 },
+  { keys: ['鸡胸'], per100: 31, gramsPerUnit: 120 },
+  { keys: ['鸡蛋', '蛋'], per100: 13, unit: 6, gramsPerUnit: 50 },
+  { keys: ['米饭'], per100: 2.6, gramsPerUnit: 200 },
+  { keys: ['粥'], per100: 1.1, gramsPerUnit: 300 },
+  { keys: ['面条', '面', '粉'], per100: 4, gramsPerUnit: 250 },
+  { keys: ['燕麦'], per100: 13, gramsPerUnit: 50 },
+  { keys: ['牛奶'], per100: 3.2, unit: 6, gramsPerUnit: 200 },
+  { keys: ['酸奶'], per100: 3.5, unit: 5, gramsPerUnit: 150 },
+  { keys: ['奶茶'], per100: 1, unit: 5, gramsPerUnit: 500 },
+  { keys: ['拿铁'], per100: 1.7, unit: 6, gramsPerUnit: 350 },
+  { keys: ['咖啡', '美式'], per100: 0.1, unit: 0, gramsPerUnit: 250 },
+  { keys: ['可乐'], per100: 0, unit: 0, gramsPerUnit: 330 },
+  { keys: ['橙汁', '果汁', '汁'], per100: 0.2, unit: 1, gramsPerUnit: 250 },
+  { keys: ['香蕉'], per100: 1.1, unit: 1, gramsPerUnit: 100 },
+  { keys: ['苹果'], per100: 0.3, unit: 0.5, gramsPerUnit: 160 },
+  { keys: ['西兰花'], per100: 2.8, gramsPerUnit: 100 },
+  { keys: ['沙拉', '蔬菜', '菜'], per100: 1.5, gramsPerUnit: 150 },
+  { keys: ['牛肉'], per100: 20, gramsPerUnit: 150 },
+  { keys: ['猪肉'], per100: 20, gramsPerUnit: 150 },
+  { keys: ['三文鱼', '鱼'], per100: 20, gramsPerUnit: 150 },
+  { keys: ['面包'], per100: 9, unit: 4, gramsPerUnit: 40 },
+];
+
+function estimateFoodProtein(name, portion) {
+  const text = String(name || '');
+  let entry = null;
+  for (const row of FOOD_PROTEIN_TABLE) {
+    if (row.keys.some((k) => text.indexOf(k) >= 0)) {
+      entry = row;
+      break;
+    }
+  }
+  if (!entry) entry = { per100: 5, gramsPerUnit: 150 };
+  const grams = parseFoodGrams(portion);
+  let protein;
+  if (grams) {
+    protein = (entry.per100 * grams) / 100;
+  } else {
+    const qty = parseFoodQty(portion);
+    if (entry.unit !== undefined) protein = entry.unit * qty;
+    else protein = (entry.per100 * (entry.gramsPerUnit || 100) * qty) / 100;
+  }
+  return Math.max(0, Math.round(protein * 10) / 10);
+}
+
+function dietFoodProtein(food) {
+  if (food.protein !== undefined && food.protein !== null && food.protein !== '') {
+    return Math.max(0, Number(food.protein) || 0);
+  }
+  return estimateFoodProtein(food.name, food.portion);
+}
+
+function dietItemProtein(item) {
+  if (item.protein !== undefined && item.protein !== null && item.protein !== '') {
+    return Math.max(0, Number(item.protein) || 0);
+  }
+  const food = (Store.data.diet.foods || []).filter((f) => f.name === item.name)[0];
+  if (food) return dietFoodProtein(food);
+  return estimateFoodProtein(item.name, item.portion);
+}
+
+function dietMealProtein(items) {
+  return sumBy(items, (m) => dietItemProtein(m));
+}
+
+function dietTotalProtein(meals) {
+  return dietMealProtein(meals);
+}
+
 function dietFoodKcal(food) {
   if (food.calories !== undefined && food.calories !== null && food.calories !== '') {
     return Math.max(0, Number(food.calories) || 0);
@@ -187,6 +258,12 @@ Pages.diet = {
     const bmi = dietBmi(weight, height);
     const bmiInfo = dietBmiTone(bmi);
 
+    const protein = dietTotalProtein(meals);
+    const proteinGoalSetting = Number(d.settings.proteinGoal) || 0;
+    const proteinTarget = proteinGoalSetting || (weight ? Math.round(weight * 1.6) : 0);
+    const proteinLeft = proteinTarget - protein;
+    const proteinRatio = proteinTarget ? Math.min(100, Math.round((protein / proteinTarget) * 100)) : 0;
+
     el.innerHTML =
       pageHead(
         '饮食计划',
@@ -200,24 +277,47 @@ Pages.diet = {
           '<button class="btn primary" data-act="addFood">' + icon('plus') + '添加搭配</button>'
       ) +
 
+      '<div class="diet-macros">' +
       '<section class="card calorie-card">' +
-      '<div class="calorie-row">' +
-      '<div><div class="calorie-label">今日搭配热量</div>' +
-      '<div class="calorie-value">' + totalKcal + '<small> kcal</small></div></div>' +
-      '<div class="calorie-side">' +
+      '<div class="macro-row">' +
+      '<div><div class="macro-label">今日热量</div>' +
+      '<div class="macro-value calorie-value">' + totalKcal + '<small> kcal</small></div></div>' +
       (target
         ? '<span class="chip ' + (remainder >= 0 ? 'green' : 'red') + '">' +
-          (remainder >= 0 ? '还剩 ' + remainder + ' kcal' : '超出 ' + -remainder + ' kcal') + '</span>' +
-          '<span class="tiny muted">目标 ' + target + ' kcal · ' + ratio + '%</span>'
-        : '<span class="chip amber">还没有设热量目标</span><span class="tiny muted">在「身高体重」里设置</span>') +
-      '</div></div>' +
+          (remainder >= 0 ? '还剩 ' + remainder : '超出 ' + -remainder) + ' kcal</span>'
+        : '<span class="chip amber">还没有设目标</span>') +
+      '</div>' +
       '<div class="calorie-bar"><i class="' + (remainder < 0 ? 'over' : '') + '" style="width:' + ratio + '%"></i></div>' +
-      '<div class="calorie-meals">' +
+      '<div class="macro-meals">' +
       MEALS.map((m) => {
         const kcal = dietMealKcal(meals.filter((x) => x.type === m.value));
-        return '<span><b>' + esc(m.label) + '</b> ' + kcal + ' kcal</span>';
+        return '<span>' + esc(m.label) + ' <b>' + kcal + '</b></span>';
       }).join('') +
-      '</div></section>' +
+      '</div>' +
+      '<div class="macro-foot tiny muted">' + (target ? '目标 ' + target + ' kcal · ' + ratio + '%' : '在身高体重里设热量目标') + '</div>' +
+      '</section>' +
+
+      '<section class="card protein-card">' +
+      '<div class="macro-row">' +
+      '<div><div class="macro-label">今日蛋白质</div>' +
+      '<div class="macro-value">' + Math.round(protein) + '<small> g / ' + (proteinTarget || '—') + ' g</small></div></div>' +
+      (proteinTarget
+        ? '<span class="chip ' + (proteinLeft >= 0 ? 'teal' : 'red') + '">' +
+          (proteinLeft >= 0 ? '还差 ' + Math.round(proteinLeft) + ' g' : '超出 ' + Math.round(-proteinLeft) + ' g') + '</span>'
+        : '<span class="chip amber">还没有目标</span>') +
+      '</div>' +
+      '<div class="protein-bar"><i class="' + (proteinLeft < 0 ? 'over' : '') + '" style="width:' + proteinRatio + '%"></i></div>' +
+      '<div class="macro-meals">' +
+      MEALS.map((m) => {
+        const p = dietMealProtein(meals.filter((x) => x.type === m.value));
+        return '<span>' + esc(m.label) + ' <b>' + Math.round(p) + '</b></span>';
+      }).join('') +
+      '</div>' +
+      '<div class="macro-foot tiny muted">' +
+      (proteinGoalSetting ? '目标 ' + proteinTarget + ' g · ' + proteinRatio + '%' : '按体重 1.6 g/kg 估算，可在身高体重里改') +
+      '</div>' +
+      '</section>' +
+      '</div>' +
 
       '<div class="grid grid-4 mt-16">' +
       statCard({ label: '今日热量', dot: true, value: totalKcal + '<small>kcal</small>', sub: target ? '目标 ' + target + ' · 剩 ' + Math.max(0, remainder) : '还没有设目标' }) +
@@ -330,6 +430,14 @@ Pages.diet = {
         fNumber('weight', '体重（kg）', { value: weight || '', min: 0, max: 300, step: '0.1', placeholder: '例如 70' }),
         fNumber('calorieGoal', '每日热量目标（kcal）', { value: target, min: 0, max: 6000, step: 50 })
       ) +
+      fNumber('proteinGoal', '每日蛋白质目标（g）', {
+        value: proteinGoalSetting || '',
+        min: 0,
+        max: 400,
+        step: 1,
+        placeholder: '留空按体重 × 1.6 估算',
+        hint: '留空会用体重 × 1.6 自动估算',
+      }) +
       '<div class="bmi-row">' +
       '<span class="tiny muted">BMI</span> <b class="bmi-value">' + (bmi ? bmi.toFixed(1) : '—') + '</b>' +
       '<span class="chip ' + bmiInfo.tone + '">' + bmiInfo.label + '</span>' +
@@ -437,6 +545,7 @@ Pages.diet = {
       const nextHeight = Number(data.height) || 0;
       const nextWeight = Number(data.weight) || 0;
       const nextGoal = Number(data.calorieGoal) || 0;
+      const nextProtein = Number(data.proteinGoal) || 0;
       if (nextHeight < 0 || nextHeight > 250) {
         toast('身高请填 0–250 cm', 'err');
         return;
@@ -449,8 +558,13 @@ Pages.diet = {
         toast('热量目标请填 0–6000 kcal', 'err');
         return;
       }
+      if (nextProtein < 0 || nextProtein > 400) {
+        toast('蛋白质目标请填 0–400 g', 'err');
+        return;
+      }
       Store.data.settings.height = nextHeight;
       Store.data.settings.calorieGoal = nextGoal;
+      Store.data.settings.proteinGoal = nextProtein;
       if (nextWeight > 0) {
         const day = todayKey();
         const existing = Store.data.body.metrics.filter((m) => m.date === day)[0];
@@ -527,6 +641,7 @@ function setupDietDnD(root) {
         name: food.name,
         portion: food.portion || '',
         calories: dietFoodKcal(food),
+        protein: dietFoodProtein(food),
         createdAt: Date.now(),
       });
       Store.save();
@@ -629,6 +744,7 @@ function openFoodModal(date, presetType) {
         portion: portion,
         detail: detail,
         calories: calories,
+        protein: estimateFoodProtein(name, portion),
         createdAt: Date.now(),
       });
       Store.save();
@@ -677,6 +793,7 @@ function openFavFoodModal() {
         name: name,
         portion: portion,
         calories: rawKcal !== '' ? Math.max(0, Number(rawKcal) || 0) : estimateFoodCalories(name, portion, ''),
+        protein: estimateFoodProtein(name, portion),
         category: data.category || foodCategoryOf(name),
       });
       Store.save();

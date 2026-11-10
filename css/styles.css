@@ -2033,3 +2033,45 @@ body.modal-open { overflow: hidden; }
   .hero-clock small { font-size: 20px; }
   .home-weather { width: auto; flex-basis: auto; }
 }
+
+/* ---------------- 饮食：热量与蛋白质 ---------------- */
+
+.diet-macros {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+}
+.diet-macros .card { margin: 0; padding: 16px 18px; }
+.macro-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
+.macro-label { font-size: 11.5px; color: var(--muted); }
+.macro-value {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.macro-value small { margin-left: 4px; font-size: 12px; font-weight: 550; color: var(--muted); }
+.diet-macros .calorie-bar { height: 8px; margin-top: 10px; }
+.macro-meals { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 9px; font-size: 10.5px; color: var(--faint); }
+.macro-meals b { color: #4b5563; font-weight: 600; }
+.macro-foot { margin-top: 7px; }
+.protein-bar {
+  height: 8px;
+  margin-top: 10px;
+  border-radius: 99px;
+  background: rgba(13, 148, 136, 0.1);
+  overflow: hidden;
+}
+.protein-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #0d9488, #34d399);
+}
+.protein-bar i.over { background: linear-gradient(90deg, #dc2626, #f97316); }
+
+@media (max-width: 760px) {
+  .diet-macros { grid-template-columns: 1fr; }
+}
