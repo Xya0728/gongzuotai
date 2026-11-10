@@ -495,17 +495,23 @@ test('P11 食物可以拖进晚餐', async () => {
   eq(Store.data.diet.meals[0].name, food.name);
 });
 
-test('P12 首页快捷记录入口都能打开表单', async () => {
+test('P12 首页快捷记录入口都能打开表单或页面', async () => {
   resetData();
   App.render();
-  const buttons = Array.prototype.slice.call(document.querySelectorAll('.quick-btn'));
-  assert(buttons.length >= 6, '快捷入口数量');
-  for (let i = 0; i < buttons.length; i++) {
-    buttons[i].click();
+  const actions = ['qPlan', 'qTxn', 'qStudy', 'qTrain', 'qDiet', 'qDevice'];
+  for (const act of actions) {
+    const btn = document.querySelector('.quick-btn[data-act="' + act + '"]');
+    assert(btn, '缺少快捷入口 ' + act);
+    btn.click();
     await tick(150);
-    assert(document.querySelector('#modal-root .overlay'), '入口打不开表单：' + buttons[i].textContent.trim());
+    const opened = document.querySelector('#modal-root .overlay') || App.route !== 'home';
+    assert(opened, '入口没有反应：' + act);
     closeModal();
-    await tick(60);
+    if (App.route !== 'home') {
+      App.go('home');
+      App.render();
+      await tick(80);
+    }
   }
 });
 
@@ -699,6 +705,55 @@ test('P13 偏好齿轮保存后，生成会避开固定安排', async () => {
   App.render();
   eq(Store.data.plan.drafts[t].status, 'discarded', '丢弃后刷新不应自动重生成');
   assert(mainText().indexOf('今日参考日程') === -1, '丢弃后横幅应隐藏');
+});
+
+/* ---------------- P14 去掉打卡 ---------------- */
+
+test('P14 今日计划不再有完成打卡', async () => {
+  resetData();
+  const t = todayKey();
+  Store.data.plan.items = [
+    { id: 'p14-1', date: t, title: '写方案', start: '09:00', end: '10:00', priority: 'mid', createdAt: Date.now(), done: true },
+    { id: 'p14-2', date: t, title: '买咖啡豆', start: '', end: '', priority: 'low', createdAt: Date.now(), done: false },
+  ];
+  Store.save();
+  Pages.plan.date = t;
+  Pages.plan.view = 'timeline';
+  showPage('plan');
+  eq(document.querySelectorAll('.tick').length, 0, '不应有完成勾选');
+  eq(document.querySelectorAll('[data-act="toggle"]').length, 0, '不应有完成按钮');
+  assert(mainText().indexOf('已完成') === -1, '不应出现已完成');
+  assert(mainText().indexOf('完成度') === -1, '不应出现完成度');
+  includes(mainText(), '已排时间');
+  includes(mainText(), '最早从 09:00 开始');
+
+  Pages.plan.view = 'list';
+  App.render();
+  eq(document.querySelectorAll('.tick').length, 0, '清单也不应有勾选');
+  includes(mainText(), '写方案');
+  includes(mainText(), '买咖啡豆');
+});
+
+test('P14 首页与设置不再展示打卡统计', async () => {
+  resetData();
+  const t = todayKey();
+  Store.data.plan.items = [
+    { id: 'h14-1', date: t, title: '整理订单', start: '10:00', end: '11:00', priority: 'mid', createdAt: Date.now(), done: true },
+  ];
+  Store.data.memos = [{ id: 'm14-1', text: '记得回消息', done: true, createdAt: Date.now(), date: t }];
+  Store.data.study.logs = [{ id: 'l14-1', date: t, minutes: 90, goalId: '' }];
+  Store.save();
+  showPage('home');
+  assert(mainText().indexOf('打卡') === -1, '首页不应出现打卡');
+  assert(mainText().indexOf('已完成') === -1, '首页不应出现已完成');
+  assert(mainText().indexOf('连续') === -1, '首页不应出现连续天数');
+  eq(document.querySelectorAll('.tick').length, 0, '首页不应有勾选');
+  includes(mainText(), '学习目标');
+  includes(mainText(), '本周训练');
+
+  showPage('settings');
+  assert(mainText().indexOf('学习打卡') === -1, '设置里不应有学习打卡');
+  includes(mainText(), '学习目标');
 });
 
 /* ---------------- 运行 ---------------- */

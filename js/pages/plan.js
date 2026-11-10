@@ -6,7 +6,6 @@
 
 Pages.plan = {
   date: todayKey(),
-  filter: 'all',
   view: 'timeline',
 
   render(el) {
@@ -20,18 +19,20 @@ Pages.plan = {
     const draftOpen = draft ? draftOpenItems(draft) : [];
 
     const all = d.plan.items.filter((i) => i.date === date);
-    const openCount = all.filter((i) => !i.done).length;
-    const doneCount = all.length - openCount;
+    const timedCount = all.filter((i) => i.start && i.end).length;
+    const untimedCount = all.length - timedCount;
+    const firstTimed = all
+      .filter((i) => i.start)
+      .sort((a, b) => String(a.start).localeCompare(String(b.start)))[0];
 
     const bounds = planDayBounds(all, draft, scheduleBounds(prefs));
-    const moveTarget = date < todayKey() ? todayKey() : addDays(date, 1);
 
     el.innerHTML =
       pageHead(
         isToday ? '今日计划' : '计划 · ' + fmtDateCN(date, true),
         fmtDateCN(date, true) +
           ' · ' +
-          (all.length ? '共 ' + all.length + ' 项，已完成 ' + doneCount + ' 项' : '还没有安排'),
+          (all.length ? '共 ' + all.length + ' 项，已排时间 ' + timedCount + ' 项' : '还没有安排'),
         '<div class="month-nav">' +
           '<button class="icon-btn" data-act="prev" aria-label="前一天">' + icon('chevronL') + '</button>' +
           '<input class="input" type="date" id="plan-date" value="' + esc(date) + '" style="width:140px;height:34px">' +
@@ -49,14 +50,11 @@ Pages.plan = {
       '<div class="flex-between">' +
       '<div class="summary-row">' +
       '<div class="summary-cell"><div class="k">' + all.length + '<small>项</small></div><div class="m">计划总数</div></div>' +
-      '<div class="summary-cell"><div class="k">' + doneCount + '<small>项</small></div><div class="m">已完成</div></div>' +
-      '<div class="summary-cell"><div class="k">' + openCount + '<small>项</small></div><div class="m">未完成</div></div>' +
+      '<div class="summary-cell"><div class="k">' + timedCount + '<small>项</small></div><div class="m">已排时间</div></div>' +
+      '<div class="summary-cell"><div class="k">' + untimedCount + '<small>项</small></div><div class="m">未排时间</div></div>' +
       '</div>' +
-      '<div class="summary-right"><div class="progress-row"><div class="progress">' +
-      '<div class="progress-fill" style="width:' + pct(doneCount, all.length) + '%"></div></div>' +
-      '<span class="progress-pct">' + pct(doneCount, all.length) + '%</span></div>' +
-      '<div class="tiny muted" style="margin-top:5px">' +
-      (all.length ? '完成度 ' + pct(doneCount, all.length) + '%，继续' : '添加第一项计划吧') + '</div></div>' +
+      '<div class="summary-right"><div class="tiny muted">' +
+      (firstTimed ? '最早从 ' + esc(firstTimed.start) + ' 开始' : '用时间轴或智能排程，把一天排开') + '</div></div>' +
       '</div></section>' +
 
       '<div class="plan-toolbar mt-16">' +
@@ -64,19 +62,9 @@ Pages.plan = {
       '<button class="tab' + (this.view === 'timeline' ? ' active' : '') + '" data-act="view" data-view="timeline">日程表</button>' +
       '<button class="tab' + (this.view === 'list' ? ' active' : '') + '" data-act="view" data-view="list">清单</button>' +
       '</div>' +
-      (this.view === 'list'
-        ? '<div class="tabs" style="margin-bottom:0">' +
-          ['all', 'open', 'done']
-            .map(
-              (f) =>
-                '<button class="tab' + (this.filter === f ? ' active' : '') + '" data-act="filter" data-filter="' + f + '">' +
-                (f === 'all' ? '全部 ' + all.length : f === 'open' ? '未完成 ' + openCount : '已完成 ' + doneCount) +
-                '</button>'
-            )
-            .join('') +
-          '</div>'
-        : '<div class="tiny muted">拖动色块可以改时间；点色块编辑</div>') +
-      (openCount ? '<button class="btn sm" data-act="moveOpen">把未完成挪到' + (moveTarget === todayKey() ? '今天' : fmtDateCN(moveTarget)) + '</button>' : '') +
+      (this.view === 'timeline'
+        ? '<div class="tiny muted">拖动色块可以改时间；点色块编辑</div>'
+        : '<div class="tiny muted">按时间排序，共 ' + all.length + ' 项</div>') +
       '</div>' +
 
       (this.view === 'timeline'
@@ -99,10 +87,6 @@ Pages.plan = {
       },
       today() {
         Pages.plan.date = todayKey();
-        App.refresh();
-      },
-      filter(node) {
-        Pages.plan.filter = node.dataset.filter;
         App.refresh();
       },
       view(node) {
@@ -129,27 +113,6 @@ Pages.plan = {
             App.refresh();
           },
         });
-      },
-      toggle(node) {
-        const item = findById(Store.data.plan.items, node.dataset.id);
-        if (!item) return;
-        item.done = !item.done;
-        item.doneAt = item.done ? Date.now() : null;
-        Store.save();
-        App.refresh();
-      },
-      moveOpen() {
-        const target = Pages.plan.date < todayKey() ? todayKey() : addDays(Pages.plan.date, 1);
-        let moved = 0;
-        Store.data.plan.items.forEach((i) => {
-          if (i.date === Pages.plan.date && !i.done) {
-            i.date = target;
-            moved++;
-          }
-        });
-        Store.save();
-        toast('已把 ' + moved + ' 项挪到 ' + fmtDateCN(target));
-        App.refresh();
       },
       smart() {
         const drafts = Store.data.plan.drafts || {};
@@ -238,7 +201,6 @@ Pages.plan = {
     dateInput.addEventListener('change', () => {
       if (!dateInput.value) return;
       Pages.plan.date = dateInput.value;
-      Pages.plan.filter = 'all';
       App.refresh();
     });
 
@@ -302,7 +264,6 @@ Pages.plan = {
         startMin: timeToMin(i.start),
         endMin: timeToMin(i.end),
         module: '',
-        done: i.done,
       }));
 
     const ghost = draft && draft.status !== 'discarded'
@@ -365,7 +326,6 @@ Pages.plan = {
       const cls =
         'tl-block ' + (isDraft ? 'is-draft' : 'kind-plan') +
         (b.module ? ' m-' + b.module : '') +
-        (b.done ? ' is-done' : '') +
         (short ? ' is-short' : '') +
         (b.conflict ? ' is-conflict' : '');
       const pos =
@@ -411,11 +371,8 @@ Pages.plan = {
   /* ---------------- 清单 ---------------- */
   listHtml(all) {
     const list = all
-      .filter((i) => (this.filter === 'open' ? !i.done : this.filter === 'done' ? i.done : true))
-      .sort((a, b) => {
-        if (!!a.done !== !!b.done) return a.done ? 1 : -1;
-        return (a.start || '99:99').localeCompare(b.start || '99:99') || (a.createdAt || 0) - (b.createdAt || 0);
-      });
+      .slice()
+      .sort((a, b) => (a.start || '99:99').localeCompare(b.start || '99:99') || (a.createdAt || 0) - (b.createdAt || 0));
 
     return (
       '<section class="card mt-12"><div class="list">' +
@@ -423,9 +380,7 @@ Pages.plan = {
         ? list
             .map(
               (i) =>
-                '<div class="item' + (i.done ? ' is-done' : '') + '">' +
-                '<button class="tick' + (i.done ? ' on' : '') + '" data-act="toggle" data-id="' + i.id + '" aria-label="完成">' +
-                icon('check') + '</button>' +
+                '<div class="item">' +
                 '<div class="item-body"><div class="item-title">' + esc(i.title) + '</div>' +
                 '<div class="item-meta">' +
                 (i.start || i.end
@@ -441,10 +396,7 @@ Pages.plan = {
                 '</div></div>'
             )
             .join('')
-        : emptyState(
-            this.filter === 'all' ? '这一天还没有计划' : this.filter === 'open' ? '没有未完成的计划' : '还没有已完成的计划',
-            this.filter === 'all' ? '点右上角「添加计划」，或让智能排程先给一版参考' : '切换上面的筛选看看'
-          )) +
+        : emptyState('这一天还没有计划', '点右上角「添加计划」，或让智能排程先给一版参考')) +
       '</div></section>'
     );
   },
@@ -459,9 +411,7 @@ Pages.plan = {
       list
         .map(
           (i) =>
-            '<div class="item' + (i.done ? ' is-done' : '') + '">' +
-            '<button class="tick' + (i.done ? ' on' : '') + '" data-act="toggle" data-id="' + i.id + '" aria-label="完成">' +
-            icon('check') + '</button>' +
+            '<div class="item">' +
             '<div class="item-body"><div class="item-title">' + esc(i.title) + '</div>' +
             '<div class="item-meta">' + chipsFor(PRIORITIES, i.priority) + '</div></div>' +
             '<div class="item-actions">' +
@@ -630,7 +580,6 @@ function adoptDraftItem(date, draft, item) {
     end: item.end,
     priority: item.priority || 'mid',
     note: '',
-    done: false,
     createdAt: Date.now(),
     source: 'auto',
     reason: item.reason || '',
@@ -733,7 +682,6 @@ function openPlanModal(item, date) {
           end: data.end || '',
           priority: data.priority || 'mid',
           note: String(data.note || '').trim(),
-          done: false,
           createdAt: Date.now(),
         });
         toast('已添加计划');

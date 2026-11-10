@@ -252,8 +252,7 @@ const Scheduler = {
 
     /* ---- 之前没做完的计划 ---- */
     const leftover = d.plan.items
-      .filter((i) => i.date < date && !i.done)
-      .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+      .filter((i) => i.date === addDays(date, -1))
       .slice(0, 2);
     leftover.forEach((i) => {
       const late = diffDays(i.date, date);
@@ -264,7 +263,7 @@ const Scheduler = {
         priority: late >= 2 ? 'high' : 'mid',
         windows: [['09:00', '12:00'], ['14:00', '18:00'], ['19:00', '21:30']],
         score: 46 + Math.min(20, late * 4),
-        reason: late + ' 天前没做完，先收个尾',
+        reason: late + ' 天前排的计划，顺延过来',
       });
     });
 

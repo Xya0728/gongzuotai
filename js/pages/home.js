@@ -4,7 +4,8 @@
    首页总览
    ========================================================= */
 
-function homeMiniCard(modId, main, sub) {  const m = findById(MODULES, modId);
+function homeMiniCard(modId, main, sub) {
+  const m = findById(MODULES, modId);
   if (!m) return '';
   return (
     '<a class="mini" href="#/' + m.id + '">' +
@@ -30,20 +31,22 @@ Pages.home = {
     const mk = monthKeyOf(t);
     const weekStart = weekStartKey(t);
 
-    const planItems = d.plan.items.filter((i) => i.date === t);
-    const doneCount = planItems.filter((i) => i.done).length;
-    const openItems = planItems
-      .filter((i) => !i.done)
-      .sort((a, b) => (a.start || '99:99').localeCompare(b.start || '99:99'));
-    const overdue = d.plan.items.filter((i) => !i.done && i.date < t);
+    const planItems = d.plan.items
+      .filter((i) => i.date === t)
+      .sort((a, b) => (a.start || '99:99').localeCompare(b.start || '99:99') || (a.createdAt || 0) - (b.createdAt || 0));
+    const timed = planItems.filter((i) => i.start && i.end);
+    const overdue = d.plan.items.filter((i) => i.date < t);
+    const firstTimed = planItems.filter((i) => i.start)[0];
 
-    const memos = d.memos.filter((m) => !m.done).sort((a, b) => b.createdAt - a.createdAt);
-    const doneMemos = d.memos.filter((m) => m.done).length;
+    const memos = d.memos.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-    const studyToday = sumBy(d.study.logs.filter((l) => l.date === t), (l) => l.minutes);
-    const studyWeek = sumBy(d.study.logs.filter((l) => l.date >= weekStart && l.date <= t), (l) => l.minutes);
+    const goals = d.study.goals || [];
+    const upcomingGoal = goals
+      .filter((g) => g.deadline && g.deadline >= t)
+      .sort((a, b) => String(a.deadline).localeCompare(String(b.deadline)))[0];
 
-    const weekSessions = d.fitness.sessions.filter((s) => s.date >= weekStart && s.date <= t);
+    const weekPlans = (d.fitness.plans || []).filter((p) => p.date >= weekStart && p.date <= addDays(weekStart, 6));
+    const routineNames = (d.fitness.routines || []).map((r) => r.name).filter(Boolean);
 
     const spend = sumBy(
       d.money.txns.filter((x) => x.type === 'expense' && x.date.indexOf(mk) === 0),
@@ -51,7 +54,6 @@ Pages.home = {
     );
     const budget = Number(d.money.budgets[mk]) || 0;
 
-    const planPct = pct(doneCount, planItems.length);
     const visible = App.visibleModules().map((m) => m.id);
     const has = (id) => visible.indexOf(id) >= 0;
 
@@ -71,33 +73,28 @@ Pages.home = {
       );
     }
     if (has('study')) {
-      const streak = studyStreak(d.study.logs);
       cards.push(
         homeMiniCard(
           'study',
-          studyToday ? minutesText(studyToday) : '今天还没学',
-          '本周 ' + hoursText(studyWeek) + ' · 连续 ' + streak + ' 天'
+          goals.length ? '目标 ' + goals.length + ' 个' : '还没有目标',
+          upcomingGoal ? '最近截止 ' + fmtDateCN(upcomingGoal.deadline) : '去设一个学习目标'
         )
       );
     }
     if (has('fitness')) {
-      const weekSessions = d.fitness.sessions.filter((s) => s.date >= weekStart && s.date <= t);
-      const latest = d.body.metrics.slice().sort(byDateDesc)[0];
       cards.push(
         homeMiniCard(
           'fitness',
-          '本周 ' + weekSessions.length + ' 次训练',
-          latest ? '最新体重 ' + latest.weight + ' kg' : '还没有体重记录'
+          weekPlans.length ? '本周 ' + weekPlans.length + ' 次安排' : '本周还没排训练',
+          routineNames.length ? routineNames.join(' / ') : '先建推日 / 拉日模板'
         )
       );
     }
     if (has('diet')) {
-      const todayMeals = d.diet.meals.filter((m) => m.date === t);
-      const recorded = MEALS.filter((m) => todayMeals.some((x) => x.type === m.value)).length;
       const water = Number(d.diet.water[t]) || 0;
       const goal = Number(d.settings.waterGoal) || 2000;
       cards.push(
-        homeMiniCard('diet', '已记录 ' + recorded + '/3 餐', '饮水 ' + water + ' / ' + goal + ' ml')
+        homeMiniCard('diet', '饮水 ' + water + ' / ' + goal + ' ml', '一日餐饮搭配在饮食计划里排')
       );
     }
     if (has('games')) {
@@ -126,32 +123,35 @@ Pages.home = {
         greeting(),
         fmtDateCN(t, true) +
           ' · ' +
-          (planItems.length
-            ? '今天有 ' + planItems.length + ' 项计划，已完成 ' + doneCount + ' 项'
-            : '今天还没有安排计划') +
-          ' · 本周学习 ' + hoursText(studyWeek),
+          (planItems.length ? '今天有 ' + planItems.length + ' 项计划' : '今天还没有安排计划') +
+          ' · 本周训练 ' + weekPlans.length + ' 次',
         '<a class="btn primary" href="#/plan">' + icon('calendar') + '今日计划</a>'
       ) +
       '<div class="grid grid-4">' +
       statCard({
         label: '今日计划',
         dot: true,
-        value: doneCount + '<small>/ ' + planItems.length + ' 项</small>',
-        sub: planItems.length ? '还剩 ' + (planItems.length - doneCount) + ' 项待完成' : '还没有安排',
+        value: planItems.length + '<small>项</small>',
+        sub: firstTimed ? '最早 ' + firstTimed.start + ' 开始' : planItems.length ? '还没有排时间' : '还没有安排',
       }) +
       statCard({
-        label: '今日学习',
+        label: '学习目标',
         dot: true,
-        value: studyToday ? minutesText(studyToday) : '0 <small>分钟</small>',
-        sub: '本周累计 ' + hoursText(studyWeek),
+        value: goals.length + '<small>个</small>',
+        sub: upcomingGoal ? '最近截止 ' + fmtDateCN(upcomingGoal.deadline) : '还没有设截止日期',
       }) +
       statCard({
         label: '本周训练',
         dot: true,
-        value: weekSessions.length + '<small>次</small>',
-        sub: weekSessions.length
-          ? '共 ' + sumBy(weekSessions, (s) => sessionSets(s)) + ' 组 · ' + fmtNum(Math.round(sumBy(weekSessions, (s) => sessionVolume(s)))) + ' kg'
-          : '本周还没有训练',
+        value: weekPlans.length + '<small>次</small>',
+        sub: weekPlans.length
+          ? weekPlans
+              .slice()
+              .sort(byDateAsc)
+              .map((p) => '周' + '一二三四五六日'[parseDate(p.date).getDay() || 7] + ' ' + p.name)
+              .slice(0, 3)
+              .join(' · ')
+          : '去健身页安排本周训练',
       }) +
       statCard({
         label: '本月支出',
@@ -168,37 +168,30 @@ Pages.home = {
       '<section class="card">' +
       '<div class="card-head"><div><h2>今日计划</h2>' +
       '<p class="card-sub">' +
-      (planItems.length ? '已完成 ' + doneCount + ' / ' + planItems.length + ' 项' : '把今天要做的事排进来') +
+      (planItems.length ? '共 ' + planItems.length + ' 项，已排时间 ' + timed.length + ' 项' : '把今天要做的事排进来') +
       '</p></div><a class="link" href="#/plan">查看全部 ›</a></div>' +
-      (planItems.length
-        ? '<div class="progress-row"><div class="progress"><div class="progress-fill" style="width:' + planPct + '%"></div></div>' +
-          '<span class="progress-pct">' + planPct + '%</span></div>'
-        : '') +
       (overdue.length
-        ? '<div class="hint-bar mt-12"><span>有 ' + overdue.length + ' 项以前没做完的计划</span>' +
+        ? '<div class="hint-bar mt-12"><span>有 ' + overdue.length + ' 项之前排的计划</span>' +
           '<button class="btn sm" data-act="pullOverdue">挪到今天</button></div>'
         : '') +
       '<div class="list mt-12">' +
-      (openItems.length
-        ? openItems
+      (planItems.length
+        ? planItems
             .slice(0, 6)
             .map(
               (i) =>
-                '<div class="item"><button class="tick" data-act="togglePlan" data-id="' + i.id + '" aria-label="完成">' +
-                icon('check') + '</button>' +
+                '<div class="item">' +
                 '<div class="item-body"><div class="item-title">' + esc(i.title) + '</div>' +
                 '<div class="item-meta">' +
-                (i.start ? '<span class="chip gray">' + esc(i.start) + (i.end ? '–' + esc(i.end) : '') + '</span>' : '') +
+                (i.start ? '<span class="chip gray">' + esc(i.start) + (i.end ? '–' + esc(i.end) : '') + '</span>' : '<span class="chip gray">未排时间</span>') +
                 chipsFor(PRIORITIES, i.priority) +
                 (i.note ? '<span>' + esc(i.note) + '</span>' : '') +
                 '</div></div></div>'
             )
             .join('')
-        : doneCount
-          ? '<div class="tiny muted" style="padding:6px 2px">今天的计划都完成了。</div>'
-          : emptyState('今天还没有计划', '在下面直接写一件要做的事，回车即可加入')) +
+        : emptyState('今天还没有计划', '在下面直接写一件要做的事，回车即可加入')) +
       '</div>' +
-      (openItems.length > 6 ? '<div class="tiny muted mt-8">还有 ' + (openItems.length - 6) + ' 项未完成，去今日计划查看</div>' : '') +
+      (planItems.length > 6 ? '<div class="tiny muted mt-8">还有 ' + (planItems.length - 6) + ' 项，去今日计划查看</div>' : '') +
       '<form class="quick-add" id="home-plan-add"><input class="input" name="title" maxlength="80" placeholder="添加一件今天要做的事，回车保存">' +
       '<button class="btn primary sm" type="submit">' + icon('plus') + '添加</button></form>' +
       '</section>' +
@@ -213,9 +206,7 @@ Pages.home = {
       /* ---- 快速备忘 ---- */
       '<div class="stack"><section class="card">' +
       '<div class="card-head"><div><h2>快速备忘</h2><p class="card-sub">' +
-      (memos.length ? memos.length + ' 条待处理' : '随手记，不怕忘') + '</p></div>' +
-      (doneMemos ? '<button class="btn ghost sm" data-act="clearMemos">清除已完成</button>' : '') +
-      '</div>' +
+      (memos.length ? memos.length + ' 条备忘' : '随手记，不怕忘') + '</p></div></div>' +
       '<form class="memo-add" id="memo-add"><input class="input" name="text" maxlength="120" placeholder="记一句…">' +
       '<button class="btn sm" type="submit">记下</button></form>' +
       '<div class="list">' +
@@ -224,9 +215,7 @@ Pages.home = {
             .slice(0, 10)
             .map(
               (m) =>
-                '<div class="item"><button class="tick" data-act="toggleMemo" data-id="' + m.id + '" aria-label="完成">' +
-                icon('check') + '</button>' +
-                '<div class="item-body"><div class="item-title" style="white-space:normal">' + esc(m.text) + '</div>' +
+                '<div class="item"><div class="item-body"><div class="item-title" style="white-space:normal">' + esc(m.text) + '</div>' +
                 '<div class="item-meta">' + esc(fmtDateCN(m.date || dateKey(new Date(m.createdAt || Date.now())))) + '</div></div>' +
                 '<div class="item-actions"><button class="icon-btn danger" data-act="delMemo" data-id="' + m.id + '" aria-label="删除">' +
                 icon('trash') + '</button></div></div>'
@@ -241,9 +230,9 @@ Pages.home = {
       '<div class="quick-grid">' +
       quickBtn('qPlan', 'calendar', '添加计划', '#2563eb', '#e8effd') +
       quickBtn('qTxn', 'wallet', '记一笔', '#b45309', '#fbf0dd') +
-      quickBtn('qStudy', 'book', '学习打卡', '#7c3aed', '#f0eafd') +
-      quickBtn('qTrain', 'dumbbell', '记录训练', '#ea580c', '#fdeee4') +
-      quickBtn('qDiet', 'bowl', '添加饮食', '#16a34a', '#e6f5ea') +
+      quickBtn('qStudy', 'book', '学习目标', '#7c3aed', '#f0eafd') +
+      quickBtn('qTrain', 'dumbbell', '训练安排', '#ea580c', '#fdeee4') +
+      quickBtn('qDiet', 'bowl', '饮食搭配', '#16a34a', '#e6f5ea') +
       quickBtn('qDevice', 'gamepad', '添加设备', '#db2777', '#fce8f0') +
       '</div></section>' +
       '</div>' +
@@ -258,53 +247,32 @@ Pages.home = {
         openTxnModal(null);
       },
       qStudy() {
-        openStudyLogModal(null, '', todayKey());
+        openGoalModal(null);
       },
       qTrain() {
-        openSessionModal(null, '');
+        App.go('fitness');
       },
       qDiet() {
-        openFoodModal(todayKey(), 'breakfast');
+        App.go('diet');
       },
       qDevice() {
         openDeviceModal(null);
       },
-      togglePlan(node) {
-        const item = findById(d.plan.items, node.dataset.id);
-        if (!item) return;
-        item.done = !item.done;
-        item.doneAt = item.done ? Date.now() : null;
-        Store.save();
-        App.refresh();
-      },
       pullOverdue() {
         let moved = 0;
         d.plan.items.forEach((i) => {
-          if (!i.done && i.date < t) {
+          if (i.date < t) {
             i.date = t;
             moved++;
           }
         });
         Store.save();
-        toast('已把 ' + moved + ' 项没做完的计划挪到今天');
-        App.refresh();
-      },
-      toggleMemo(node) {
-        const memo = findById(d.memos, node.dataset.id);
-        if (!memo) return;
-        memo.done = true;
-        Store.save();
+        toast('已把 ' + moved + ' 项计划挪到今天');
         App.refresh();
       },
       delMemo(node) {
         removeById(d.memos, node.dataset.id);
         Store.save();
-        App.refresh();
-      },
-      clearMemos() {
-        d.memos = d.memos.filter((m) => !m.done);
-        Store.save();
-        toast('已清除完成的备忘');
         App.refresh();
       },
     });
@@ -322,7 +290,6 @@ Pages.home = {
         end: '',
         priority: 'mid',
         note: '',
-        done: false,
         createdAt: Date.now(),
       });
       Store.save();
@@ -335,7 +302,7 @@ Pages.home = {
       e.preventDefault();
       const text = String(new FormData(memoForm).get('text') || '').trim();
       if (!text) return;
-      d.memos.push({ id: uid(), text: text, done: false, createdAt: Date.now(), date: t });
+      d.memos.push({ id: uid(), text: text, createdAt: Date.now(), date: t });
       Store.save();
       App.refresh();
     });

@@ -15,10 +15,10 @@ Pages.settings = {
       { label: '订单', value: d.work.orders.length },
       { label: '库存 SKU', value: d.work.stock.length },
       { label: '选品', value: d.work.products.length },
-      { label: '学习打卡', value: d.study.logs.length },
-      { label: '训练记录', value: d.fitness.sessions.length },
-      { label: '饮食记录', value: d.diet.meals.length },
-      { label: '游戏', value: d.games.items.length },
+      { label: '学习目标', value: d.study.goals.length },
+      { label: '训练安排', value: (d.fitness.plans || []).length },
+      { label: '饮食搭配', value: d.diet.meals.length },
+      { label: '设备', value: (d.games.devices || []).length },
       { label: '消费', value: d.money.txns.length },
     ];
 
@@ -127,7 +127,7 @@ Pages.settings = {
       reset() {
         confirmAction({
           title: '清空所有数据？',
-          message: '计划、备忘、订单、打卡、消费等全部记录都会被删除，且无法恢复。建议先导出备份。',
+          message: '计划、备忘、订单、消费等全部记录都会被删除，且无法恢复。建议先导出备份。',
           okText: '全部清空',
           danger: true,
           onOk() {
