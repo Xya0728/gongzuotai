@@ -279,6 +279,39 @@ function greeting() {
   return '晚上好';
 }
 
+function readImageFile(file, maxSize, quality, callback) {
+  const reader = new FileReader();
+  reader.onload = function () {
+    const img = new Image();
+    img.onload = function () {
+      const limit = maxSize || 640;
+      const scale = Math.min(1, limit / Math.max(img.width, img.height));
+      const width = Math.max(1, Math.round(img.width * scale));
+      const height = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      let dataUrl = String(reader.result);
+      try {
+        dataUrl = canvas.toDataURL('image/jpeg', quality || 0.82);
+      } catch (err) {
+        dataUrl = String(reader.result);
+      }
+      callback(dataUrl);
+    };
+    img.onerror = function () {
+      callback(String(reader.result));
+    };
+    img.src = String(reader.result);
+  };
+  reader.onerror = function () {
+    callback('');
+  };
+  reader.readAsDataURL(file);
+}
+
 function shopOf(id) {
   return Store.data.work.shops.find((s) => s.id === id);
 }
@@ -330,7 +363,7 @@ function defaultData() {
     memos: [],
     plan: { items: [] },
     work: { shops: [], orders: [], stock: [], products: [], ads: [] },
-    study: { goals: [], logs: [] },
+    study: { goals: [], logs: [], categories: ['书籍', '乐器', '课程'] },
     fitness: {
       routines: [
         { id: 'rt-push', name: '推日', note: '胸 / 肩 / 三头' },
@@ -705,6 +738,7 @@ function fInput(name, label, opts) {
   if (o.max !== undefined) attrs += ' max="' + esc(o.max) + '"';
   if (o.step !== undefined) attrs += ' step="' + esc(o.step) + '"';
   if (o.maxlength) attrs += ' maxlength="' + esc(o.maxlength) + '"';
+  if (o.list) attrs += ' list="' + esc(o.list) + '"';
   return field(label, '<input ' + attrs + '>', o.hint);
 }
 

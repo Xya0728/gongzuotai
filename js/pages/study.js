@@ -4,6 +4,25 @@
    学习计划
    ========================================================= */
 
+function ensureStudyCategory(name) {
+  const data = Store.data.study;
+  if (!Array.isArray(data.categories)) data.categories = ['书籍', '乐器', '课程'];
+  const value = String(name || '').trim();
+  if (value && data.categories.indexOf(value) === -1) data.categories.push(value);
+  return value;
+}
+
+function studyCover(goal) {
+  if (goal.image) {
+    return (
+      '<button class="goal-cover" data-act="viewImage" data-id="' + goal.id + '" aria-label="查看图片">' +
+      '<img src="' + esc(goal.image) + '" alt="' + esc(goal.title) + '"></button>'
+    );
+  }
+  const text = String(goal.category || goal.subject || '学').slice(0, 1);
+  return '<span class="goal-cover placeholder">' + esc(text) + '</span>';
+}
+
 Pages.study = {
   render(el) {
     const d = Store.data;
@@ -62,8 +81,10 @@ Pages.study = {
               const overdue = g.deadline && g.deadline < t && g.status === 'active';
               return (
                 '<div class="item" style="align-items:flex-start">' +
+                studyCover(g) +
                 '<div class="item-body"><div class="item-title">' + esc(g.title) + ' ' +
                 chipsFor(GOAL_STATUS, g.status) +
+                (g.category ? ' <span class="chip violet">' + esc(g.category) + '</span>' : '') +
                 (g.subject ? ' <span class="chip gray">' + esc(g.subject) + '</span>' : '') + '</div>' +
                 '<div class="item-meta">已学 ' + hoursText(learned) +
                 (targetMin ? ' / 目标 ' + g.targetHours + ' 小时' : '') +
@@ -121,6 +142,16 @@ Pages.study = {
       addGoal() {
         openGoalModal(null);
       },
+      viewImage(node) {
+        const goal = findById(Store.data.study.goals, node.dataset.id);
+        if (!goal || !goal.image) return;
+        openModal({
+          title: goal.title,
+          size: 'small',
+          footer: false,
+          body: '<img class="goal-image-full" src="' + esc(goal.image) + '" alt="' + esc(goal.title) + '">',
+        });
+      },
       addLog() {
         openStudyLogModal(null, '', todayKey());
       },
@@ -164,6 +195,27 @@ function openGoalModal(goal) {
     size: 'small',
     body:
       fInput('title', '目标', { value: editing ? goal.title : '', placeholder: '例如：学完《经济学原理》', required: true }) +
+      fInput('category', '分类', {
+        value: editing ? goal.category || '' : '',
+        placeholder: '书籍 / 乐器 / 课程，也可以直接输入新分类',
+        list: 'study-cat-list',
+      }) +
+      '<datalist id="study-cat-list">' +
+      (Store.data.study.categories || [])
+        .map((c) => '<option value="' + esc(c) + '"></option>')
+        .join('') +
+      '</datalist>' +
+      '<div class="field"><span class="field-label">封面图片（可不加）</span>' +
+      '<div class="img-pick">' +
+      '<div class="img-preview" id="goal-image-preview">' +
+      (editing && goal.image ? '<img src="' + esc(goal.image) + '" alt="">' : '<span class="tiny muted">未选择</span>') +
+      '</div>' +
+      '<div class="img-pick-actions"><label class="btn sm">选择图片' +
+      '<input type="file" accept="image/*" id="goal-image-file" hidden></label>' +
+      '<button type="button" class="btn ghost sm" id="goal-image-clear">移除</button></div>' +
+      '</div>' +
+      '<input type="hidden" name="image" id="goal-image-data" value="' + (editing ? esc(goal.image || '') : '') + '">' +
+      '</div>' +
       fRow(
         fInput('subject', '主题 / 科目', { value: editing ? goal.subject : '', placeholder: '例如：英语、编程' }),
         fNumber('targetHours', '目标小时数', { value: editing ? goal.targetHours : '', min: 0, step: '0.5', placeholder: '选填' })
@@ -173,14 +225,43 @@ function openGoalModal(goal) {
         fSelect('status', '状态', GOAL_STATUS, editing ? goal.status : 'active')
       ) +
       fTextarea('note', '备注', editing ? goal.note : '', { rows: 2, placeholder: '为什么想学、怎么学，可不填' }),
+    onMount(form) {
+      const fileInput = form.querySelector('#goal-image-file');
+      const hidden = form.querySelector('#goal-image-data');
+      const preview = form.querySelector('#goal-image-preview');
+      if (fileInput) {
+        fileInput.addEventListener('change', () => {
+          const file = fileInput.files && fileInput.files[0];
+          if (!file) return;
+          readImageFile(file, 640, 0.82, (dataUrl) => {
+            if (!dataUrl) {
+              toast('图片读取失败', 'err');
+              return;
+            }
+            hidden.value = dataUrl;
+            preview.innerHTML = '<img src="' + esc(dataUrl) + '" alt="">';
+          });
+        });
+      }
+      const clear = form.querySelector('#goal-image-clear');
+      if (clear) {
+        clear.addEventListener('click', () => {
+          hidden.value = '';
+          preview.innerHTML = '<span class="tiny muted">未选择</span>';
+        });
+      }
+    },
     onSubmit(data) {
       const title = String(data.title || '').trim();
       if (!title) {
         toast('请填写目标', 'err');
         return false;
       }
+      const category = ensureStudyCategory(data.category);
       const payload = {
         title: title,
+        category: category,
+        image: String(data.image || ''),
         subject: String(data.subject || '').trim(),
         targetHours: Number(data.targetHours) || 0,
         deadline: data.deadline || '',

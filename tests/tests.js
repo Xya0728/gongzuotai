@@ -409,6 +409,42 @@ if (location.protocol === 'http:') {
   });
 }
 
+/* ---------------- P9 学习分类与图片 ---------------- */
+
+test('P9 学习目标支持分类和封面图片', async () => {
+  resetData();
+  const img =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  Store.data.study.goals = [
+    { id: 'sg1', title: '钢琴基础', category: '乐器', image: img, subject: '音乐', targetHours: 20, deadline: '', status: 'active', note: '' },
+  ];
+  Store.save();
+  showPage('study');
+  includes(mainText(), '乐器', '分类标签');
+  const cover = document.querySelector('.goal-cover img');
+  assert(cover, '应显示封面图片');
+  assert(cover.getAttribute('src').indexOf('data:image') === 0, '封面应为图片数据');
+});
+
+test('P9 学习分类可以在新增目标时扩展', async () => {
+  resetData();
+  showPage('study');
+  document.querySelector('[data-act="addGoal"]').click();
+  await tick(150);
+  const form = document.querySelector('#modal-root form');
+  assert(form.querySelector('#goal-image-file'), '应有图片选择入口');
+  assert(form.querySelector('#study-cat-list'), '应有分类候选');
+  form.elements.title.value = '练习水彩';
+  form.elements.category.value = '绘画';
+  form.requestSubmit();
+  await tick(250);
+  const goal = Store.data.study.goals.filter((g) => g.title === '练习水彩')[0];
+  assert(goal, '应保存新目标');
+  eq(goal.category, '绘画', '新分类');
+  assert(Store.data.study.categories.indexOf('绘画') >= 0, '分类列表应记住新分类');
+  includes(mainText(), '绘画', '页面应显示新分类');
+});
+
 /* ---------------- 运行 ---------------- */
 
 (async function runAll() {

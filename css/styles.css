@@ -1207,3 +1207,43 @@ body.modal-open { overflow: hidden; }
 .save-row .btn { height: 26px; padding: 0 10px; font-size: 11.5px; }
 
 .sidebar-foot .tiny { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------------- 学习封面 ---------------- */
+
+.goal-cover {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 58px;
+  padding: 0;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 1px 0 #fff;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.goal-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.goal-cover.placeholder {
+  cursor: default;
+  font-size: 19px;
+  font-weight: 650;
+  color: #7c3aed;
+  background: linear-gradient(160deg, rgba(124, 58, 237, 0.18), rgba(124, 58, 237, 0.05));
+}
+.img-pick { display: flex; align-items: center; gap: 12px; }
+.img-preview {
+  width: 76px;
+  height: 76px;
+  flex: 0 0 76px;
+  border-radius: 14px;
+  border: 1px dashed rgba(23, 31, 48, 0.18);
+  background: rgba(255, 255, 255, 0.5);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+.img-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.img-pick-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.goal-image-full { width: 100%; display: block; border-radius: 16px; }
