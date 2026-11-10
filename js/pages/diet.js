@@ -93,11 +93,11 @@ Pages.diet = {
       '<div class="grid diet-cols mt-16">' +
       '<div class="stack">' +
       '<section class="card"><div class="card-head"><div><h2>' + (isToday ? '今日饮食' : fmtDateCN(date, true) + ' 的饮食') + '</h2>' +
-      '<p class="card-sub">按餐次记录，随时补充</p></div></div>' +
+      '<p class="card-sub">按餐次记录；也可以把下面的常吃食物拖进某一餐</p></div></div>' +
       MEALS.map((meal) => {
         const items = meals.filter((m) => m.type === meal.value);
         return (
-          '<div class="meal"><div class="meal-head"><span class="meal-name">' + esc(meal.label) +
+          '<div class="meal" data-meal="' + meal.value + '"><div class="meal-head"><span class="meal-name">' + esc(meal.label) +
           (items.length ? ' <span class="chip gray">' + items.length + ' 项</span>' : '') + '</span>' +
           '<button class="btn ghost sm" data-act="addFood" data-type="' + meal.value + '">+ 添加</button></div>' +
           '<div class="meal-items">' +
@@ -123,7 +123,8 @@ Pages.diet = {
           d.diet.foods
             .map(
               (f) =>
-                '<div class="food-card"><span class="food-thumb">' + foodArt(f.name, f.category) + '</span>' +
+                '<div class="food-card" draggable="true" data-food-id="' + f.id + '" title="拖到早餐/午餐/晚餐里">' +
+                '<span class="food-thumb">' + foodArt(f.name, f.category) + '</span>' +
                 '<span class="food-meta"><b>' + esc(f.name) + '</b><span>' + esc(f.portion || '') + '</span></span>' +
                 '<button class="icon-btn danger" data-act="delFav" data-id="' + f.id + '" aria-label="删除">' + icon('trash') + '</button></div>'
             )
@@ -214,6 +215,8 @@ Pages.diet = {
       },
     });
 
+    setupDietDnD(el);
+
     const dateInput = el.querySelector('#diet-date');
     dateInput.addEventListener('change', () => {
       if (!dateInput.value) return;
@@ -223,6 +226,75 @@ Pages.diet = {
     });
   },
 };
+
+/* ---------------- 拖拽加餐 ---------------- */
+
+function setupDietDnD(root) {
+  let dragFoodId = null;
+  const cards = root.querySelectorAll('[data-food-id]');
+  const meals = root.querySelectorAll('.meal[data-meal]');
+
+  function clearHover() {
+    meals.forEach((meal) => meal.classList.remove('drop-hover'));
+  }
+
+  cards.forEach((card) => {
+    card.addEventListener('dragstart', (event) => {
+      dragFoodId = card.dataset.foodId;
+      card.classList.add('dragging');
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'copy';
+        try {
+          event.dataTransfer.setData('text/plain', 'food:' + dragFoodId);
+        } catch (err) {
+          /* ignore */
+        }
+      }
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      dragFoodId = null;
+      clearHover();
+    });
+  });
+
+  meals.forEach((meal) => {
+    meal.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      meal.classList.add('drop-hover');
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    });
+    meal.addEventListener('dragleave', () => meal.classList.remove('drop-hover'));
+    meal.addEventListener('drop', (event) => {
+      event.preventDefault();
+      meal.classList.remove('drop-hover');
+      let foodId = dragFoodId;
+      if (!foodId && event.dataTransfer) {
+        try {
+          const raw = event.dataTransfer.getData('text/plain') || '';
+          if (raw.indexOf('food:') === 0) foodId = raw.slice(5);
+        } catch (err) {
+          /* ignore */
+        }
+      }
+      const food = findById(Store.data.diet.foods, foodId);
+      const type = meal.dataset.meal;
+      if (!food || !type) return;
+      Store.data.diet.meals.push({
+        id: uid(),
+        date: Pages.diet.date,
+        type: type,
+        name: food.name,
+        portion: food.portion || '',
+        createdAt: Date.now(),
+      });
+      Store.save();
+      const mealLabel = optionLabel(MEALS, type);
+      toast('已把「' + food.name + '」加到' + mealLabel);
+      App.refresh();
+    });
+  });
+}
 
 /* ---------------- 弹窗 ---------------- */
 

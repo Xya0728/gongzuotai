@@ -486,6 +486,50 @@ test('P10 同一天不会重复安排同一模板', async () => {
   eq((Store.data.fitness.plans || []).length, 1, '不应重复');
 });
 
+/* ---------------- P11 拖拽食物加餐 ---------------- */
+
+test('P11 食物可以拖进早餐', async () => {
+  resetData();
+  const t = todayKey();
+  Pages.diet.date = t;
+  Pages.diet.month = monthKeyOf(t);
+  showPage('diet');
+  const card = document.querySelector('.food-card');
+  const meal = document.querySelector('.meal[data-meal="breakfast"]');
+  assert(card, '应有常吃食物卡片');
+  assert(meal, '应有早餐区域');
+  const food = findById(Store.data.diet.foods, card.dataset.foodId);
+  const dt = new DataTransfer();
+  card.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }));
+  meal.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+  meal.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+  await tick(250);
+  const meals = Store.data.diet.meals;
+  eq(meals.length, 1, '应新增一条饮食记录');
+  eq(meals[0].type, 'breakfast', '餐次');
+  eq(meals[0].name, food.name, '食物名称');
+  eq(meals[0].date, t, '日期');
+  includes(mainText(), food.name, '页面应显示食物');
+});
+
+test('P11 食物可以拖进晚餐', async () => {
+  resetData();
+  const t = todayKey();
+  Pages.diet.date = t;
+  Pages.diet.month = monthKeyOf(t);
+  showPage('diet');
+  const card = document.querySelectorAll('.food-card')[1];
+  const meal = document.querySelector('.meal[data-meal="dinner"]');
+  const food = findById(Store.data.diet.foods, card.dataset.foodId);
+  const dt = new DataTransfer();
+  card.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }));
+  meal.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+  await tick(250);
+  eq(Store.data.diet.meals.length, 1, '晚餐记录');
+  eq(Store.data.diet.meals[0].type, 'dinner');
+  eq(Store.data.diet.meals[0].name, food.name);
+});
+
 /* ---------------- 运行 ---------------- */
 
 (async function runAll() {
