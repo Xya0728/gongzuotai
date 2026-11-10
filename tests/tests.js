@@ -1171,6 +1171,59 @@ test('P21 首页顶部改为浅色简约配色', async () => {
   assert(/gradient/.test(bg), '保留轻微渐变层次');
 });
 
+/* ---------------- P22 常吃食物热量 ---------------- */
+
+test('P22 常吃食物缺少热量时按公式补算并用于拖拽', async () => {
+  resetData();
+  const t = todayKey();
+  Store.data.diet.foods = [{ id: 'f22', name: '鸡腿', portion: '1 个', category: '肉类' }];
+  Store.save();
+  Pages.diet.date = t;
+  Pages.diet.month = monthKeyOf(t);
+  showPage('diet');
+  const card = document.querySelector('.food-card');
+  assert(card, '应有常吃食物卡片');
+  includes(card.textContent, '230', '卡片应显示估算热量');
+  assert(document.querySelector('[data-act="recalcFoods"]'), '应有补算按钮');
+
+  const meal = document.querySelector('.meal[data-meal="lunch"]');
+  const dt = new DataTransfer();
+  card.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+  meal.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: dt }));
+  await tick(250);
+  const item = Store.data.diet.meals[0];
+  assert(item, '应拖入搭配');
+  eq(item.calories, 230, '拖拽也要带上计算后的热量');
+  includes(document.querySelector('.meal[data-meal="lunch"]').textContent, '230', '餐次显示热量');
+
+  document.querySelector('[data-act="recalcFoods"]').click();
+  await tick(200);
+  eq(Store.data.diet.foods[0].calories, 230, '补算后写回常吃食物');
+  assert(!document.querySelector('[data-act="recalcFoods"]'), '补算后按钮消失');
+});
+
+test('P22 新增常吃食物时实时估算热量', async () => {
+  resetData();
+  Pages.diet.date = todayKey();
+  Pages.diet.month = monthKeyOf(todayKey());
+  showPage('diet');
+  document.querySelector('[data-act="addFav"]').click();
+  await tick(150);
+  const form = document.querySelector('#modal-root form');
+  form.elements.name.value = '奶茶';
+  form.elements.portion.value = '1 杯';
+  form.elements.name.dispatchEvent(new Event('input', { bubbles: true }));
+  form.elements.portion.dispatchEvent(new Event('input', { bubbles: true }));
+  await tick(80);
+  includes(form.querySelector('#fav-kcal-estimate').textContent, '350', '实时估算');
+  form.requestSubmit();
+  await tick(220);
+  const food = Store.data.diet.foods.filter((f) => f.name === '奶茶')[0];
+  assert(food, '应保存常吃食物');
+  eq(food.calories, 350, '自动填入热量');
+  includes(mainText(), '奶茶', '页面显示');
+});
+
 /* ---------------- 运行 ---------------- */
 
 (async function runAll() {

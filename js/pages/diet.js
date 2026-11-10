@@ -85,10 +85,17 @@ function estimateFoodCalories(name, portion, detail) {
   return Math.max(0, Math.round(kcal * detailKcalFactor(detail)));
 }
 
+function dietFoodKcal(food) {
+  if (food.calories !== undefined && food.calories !== null && food.calories !== '') {
+    return Math.max(0, Number(food.calories) || 0);
+  }
+  return estimateFoodCalories(food.name, food.portion, food.detail);
+}
+
 function dietItemKcal(item) {
   if (item.calories !== undefined && item.calories !== null && item.calories !== '') return Number(item.calories) || 0;
   const food = (Store.data.diet.foods || []).filter((f) => f.name === item.name)[0];
-  if (food) return Number(food.calories) || 0;
+  if (food) return dietFoodKcal(food);
   return estimateFoodCalories(item.name, item.portion, item.detail);
 }
 
@@ -163,6 +170,9 @@ Pages.diet = {
     const ratio = target ? Math.min(100, Math.round((totalKcal / target) * 100)) : 0;
 
     const water = Number(d.diet.water[date]) || 0;
+    const missingKcal = d.diet.foods.filter(
+      (f) => f.calories === undefined || f.calories === null || f.calories === ''
+    ).length;
     const coffeeCups = Number((d.diet.coffee || {})[date]) || 0;
     const caffeine = coffeeCups * 80;
     const goal = Number(d.settings.waterGoal) || 2000;
@@ -255,18 +265,23 @@ Pages.diet = {
       }).join('') +
       '</section>' +
       '<section class="card"><div class="card-head"><div><h2>常吃食物</h2>' +
-      '<p class="card-sub">标了每份热量，拖进某一餐就会自动累计</p></div>' +
+      '<p class="card-sub">每份热量按食物和分量计算，拖进某一餐就会自动累计</p></div>' +
+      (missingKcal ? '<button class="btn ghost sm" data-act="recalcFoods">补算热量</button>' : '') +
       '<button class="btn ghost sm" data-act="addFav">+ 新增</button></div>' +
       (d.diet.foods.length
         ? '<div class="food-grid">' +
           d.diet.foods
             .map(
-              (f) =>
+              (f) => {
+                const estimated = f.calories === undefined || f.calories === null || f.calories === '';
+                return (
                 '<div class="food-card" draggable="true" data-food-id="' + f.id + '" title="拖到早餐/午餐/晚餐/加餐里">' +
                 '<span class="food-thumb">' + foodArt(f.name, f.category) + '</span>' +
                 '<span class="food-meta"><b>' + esc(f.name) + '</b><span>' + esc(f.portion || '') +
-                ' · ' + (Number(f.calories) || 0) + ' kcal</span></span>' +
+                ' · ' + (estimated ? '≈' : '') + dietFoodKcal(f) + ' kcal</span></span>' +
                 '<button class="icon-btn danger" data-act="delFav" data-id="' + f.id + '" aria-label="删除">' + icon('trash') + '</button></div>'
+                );
+              }
             )
             .join('') +
           '</div>'
@@ -378,6 +393,18 @@ Pages.diet = {
         Store.data.diet.coffee = Store.data.diet.coffee || {};
         Store.data.diet.coffee[day] = Math.max(0, (Number(Store.data.diet.coffee[day]) || 0) - 1);
         Store.save();
+        App.refresh();
+      },
+      recalcFoods() {
+        let n = 0;
+        Store.data.diet.foods.forEach((f) => {
+          if (f.calories === undefined || f.calories === null || f.calories === '') {
+            f.calories = dietFoodKcal(f);
+            n++;
+          }
+        });
+        Store.save();
+        toast('已补算 ' + n + ' 项常吃食物的热量');
         App.refresh();
       },
       addFav() {
@@ -499,7 +526,7 @@ function setupDietDnD(root) {
         type: type,
         name: food.name,
         portion: food.portion || '',
-        calories: Number(food.calories) || 0,
+        calories: dietFoodKcal(food),
         createdAt: Date.now(),
       });
       Store.save();
@@ -621,7 +648,22 @@ function openFavFoodModal() {
         fInput('portion', '常用分量', { placeholder: '例如：100 g', maxlength: 30 }),
         fNumber('calories', '热量（kcal）', { value: '', min: 0, step: 1, placeholder: '例如：165' })
       ) +
-      fSelect('category', '分类', FOOD_CATEGORIES, '其他'),
+      fSelect('category', '分类', FOOD_CATEGORIES, '其他') +
+      '<div class="kcal-hint tiny muted" id="fav-kcal-estimate">热量留空时，会按食物和分量自动估算</div>',
+    onMount(form) {
+      const nameEl = form.elements.name;
+      const portionEl = form.elements.portion;
+      const hint = form.querySelector('#fav-kcal-estimate');
+      const updateHint = () => {
+        if (!hint) return;
+        const est = estimateFoodCalories(nameEl.value, portionEl.value, '');
+        hint.textContent = nameEl.value
+          ? '按常见食物估算约 ' + est + ' kcal（热量留空会自动填）'
+          : '热量留空时，会按食物和分量自动估算';
+      };
+      if (nameEl) nameEl.addEventListener('input', updateHint);
+      if (portionEl) portionEl.addEventListener('input', updateHint);
+    },
     onSubmit(data) {
       const name = String(data.name || '').trim();
       if (!name) {
