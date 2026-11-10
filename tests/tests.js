@@ -838,6 +838,96 @@ test('P15 默认饮品带热量，拖进加餐会累计', async () => {
   includes(mainText(), '350', '页面应显示热量');
 });
 
+/* ---------------- P16 消费记录改版 ---------------- */
+
+test('P16 消费页显示账单、预算圆环与收支', async () => {
+  resetData();
+  const t = todayKey();
+  const mk = monthKeyOf(t);
+  Store.data.money.txns = [
+    { id: 'mx1', date: t, type: 'expense', category: '餐饮', amount: 2000, note: '' },
+    { id: 'mx2', date: t, type: 'income', category: '工资', amount: 8000, note: '' },
+  ];
+  Store.data.money.budgets[mk] = 5000;
+  Store.save();
+  Pages.money.month = mk;
+  Pages.money.range = 'month';
+  showPage('money');
+  includes(mainText(), '账单', '账单标题');
+  includes(mainText(), '¥8,000', '收入');
+  includes(mainText(), '¥2,000', '支出');
+  eq(document.querySelector('.budget-ring').style.getPropertyValue('--p'), '60', '剩余预算百分比');
+  includes(mainText(), '60%', '圆环百分比');
+  includes(mainText(), '剩余预算', '预算明细');
+});
+
+test('P16 资产管家可以添加资产并算净资产', async () => {
+  resetData();
+  Store.data.money.assets = [
+    { id: 'as1', name: '存款', type: 'asset', amount: 10000 },
+    { id: 'as2', name: '信用卡', type: 'liability', amount: 3000 },
+  ];
+  Store.save();
+  Pages.money.month = monthKeyOf(todayKey());
+  showPage('money');
+  includes(mainText(), '净资产', '资产管家');
+  includes(mainText(), '¥7,000', '净资产金额');
+  includes(mainText(), '存款', '资产条目');
+
+  document.querySelector('[data-act="addAsset"]').click();
+  await tick(150);
+  const form = document.querySelector('#modal-root form');
+  form.elements.name.value = '基金';
+  form.elements.type.value = 'asset';
+  form.elements.amount.value = '5000';
+  form.requestSubmit();
+  await tick(220);
+  eq(Store.data.money.assets.length, 3, '资产条目数量');
+  includes(mainText(), '基金', '新增资产');
+  includes(mainText(), '¥12,000', '净资产更新');
+});
+
+test('P16 支出分析支持周/月/年切换', async () => {
+  resetData();
+  const t = todayKey();
+  const year = t.slice(0, 4);
+  Store.data.money.txns = [
+    { id: 'mr1', date: t, type: 'expense', category: '餐饮', amount: 100, note: '' },
+    { id: 'mr2', date: year + '-01-15', type: 'expense', category: '购物', amount: 500, note: '' },
+  ];
+  Store.save();
+  Pages.money.month = monthKeyOf(t);
+  Pages.money.range = 'month';
+  showPage('money');
+  assert(document.querySelector('[data-act="setRange"]'), '应有周/月/年切换');
+  document.querySelector('[data-range="year"]').click();
+  await tick(180);
+  eq(Pages.money.range, 'year', '切换到年');
+  includes(mainText(), year + ' 年', '年份标签');
+  includes(mainText(), '¥600', '全年支出');
+  document.querySelector('[data-range="week"]').click();
+  await tick(180);
+  eq(Pages.money.range, 'week', '切换到周');
+  includes(mainText(), '本周（', '本周标签');
+  includes(mainText(), '平均每天', '周平均值');
+});
+
+test('P16 记一笔仍然可用', async () => {
+  resetData();
+  Pages.money.month = monthKeyOf(todayKey());
+  showPage('money');
+  document.querySelector('[data-act="add"]').click();
+  await tick(150);
+  const form = document.querySelector('#modal-root form');
+  form.elements.amount.value = '66';
+  form.elements.category.value = '餐饮';
+  form.requestSubmit();
+  await tick(220);
+  eq(Store.data.money.txns.length, 1, '应记下一笔');
+  eq(Number(Store.data.money.txns[0].amount), 66, '金额');
+  includes(mainText(), '餐饮', '明细里应出现');
+});
+
 /* ---------------- 运行 ---------------- */
 
 (async function runAll() {

@@ -448,6 +448,7 @@ function defaultData() {
     money: {
       txns: [],
       budgets: {},
+      assets: [],
       categories: {
         expense: ['餐饮', '交通', '购物', '居住', '通讯', '娱乐', '日用', '医疗', '其他'],
         income: ['工资', '副业', '其他'],

@@ -1,16 +1,44 @@
 'use strict';
 
 /* =========================================================
-   消费记录
+   消费记录 · 账单 / 预算 / 资产 / 分析
    ========================================================= */
+
+function moneyPeriodInfo(range, mk) {
+  const year = String(mk).slice(0, 4);
+  if (range === 'week') {
+    const ws = weekStartKey(todayKey());
+    return {
+      from: ws,
+      to: addDays(ws, 6),
+      label: '本周（' + fmtShortDate(ws) + '–' + fmtShortDate(addDays(ws, 6)) + '）',
+      divisor: 7,
+      avgLabel: '平均每天',
+    };
+  }
+  if (range === 'year') {
+    return { from: year + '-01-01', to: year + '-12-31', label: year + ' 年', divisor: 12, avgLabel: '平均每月' };
+  }
+  const days = new Date(Number(year), Number(mk.slice(5, 7)), 0).getDate();
+  return {
+    from: mk + '-01',
+    to: mk + '-' + pad2(days),
+    label: monthLabel(mk),
+    divisor: days,
+    avgLabel: '平均每天',
+  };
+}
 
 Pages.money = {
   month: monthKeyOf(todayKey()),
+  range: 'month',
 
   render(el) {
     const d = Store.data;
     const mk = this.month;
     const isCurrent = mk === monthKeyOf(todayKey());
+    const year = mk.slice(0, 4);
+
     const txns = d.money.txns.filter((x) => x.date.indexOf(mk) === 0);
     const expenses = txns.filter((t) => t.type === 'expense');
     const incomes = txns.filter((t) => t.type === 'income');
@@ -18,19 +46,34 @@ Pages.money = {
     const incomeTotal = sumBy(incomes, (t) => t.amount);
     const budget = Number(d.money.budgets[mk]) || 0;
     const remaining = budget - expenseTotal;
+    const budgetPct = budget ? Math.max(0, Math.min(100, Math.round((remaining / budget) * 100))) : 0;
+    const overBudget = !!budget && expenseTotal > budget;
 
-    /* 分类统计 */
-    const catMap = {};
-    expenses.forEach((t) => {
-      const key = t.category || '其他';
-      catMap[key] = (catMap[key] || 0) + (Number(t.amount) || 0);
+    /* ---- 资产 ---- */
+    const assets = (d.money.assets || []).filter((a) => a.type !== 'liability');
+    const debts = (d.money.assets || []).filter((a) => a.type === 'liability');
+    const assetTotal = sumBy(assets, (a) => Number(a.amount) || 0);
+    const debtTotal = sumBy(debts, (a) => Number(a.amount) || 0);
+    const netWorth = assetTotal - debtTotal;
+
+    /* ---- 支出分析（周 / 月 / 年） ---- */
+    const period = moneyPeriodInfo(this.range, mk);
+    const periodExpenses = d.money.txns.filter(
+      (x) => x.type === 'expense' && x.date >= period.from && x.date <= period.to
+    );
+    const periodTotal = sumBy(periodExpenses, (x) => x.amount);
+    const periodAvg = periodTotal / (period.divisor || 1);
+    const periodCats = {};
+    periodExpenses.forEach((x) => {
+      const key = x.category || '其他';
+      periodCats[key] = (periodCats[key] || 0) + (Number(x.amount) || 0);
     });
-    const catList = Object.keys(catMap)
-      .map((name) => ({ name: name, value: catMap[name] }))
+    const periodRank = Object.keys(periodCats)
+      .map((name) => ({ name: name, value: periodCats[name] }))
       .sort((a, b) => b.value - a.value);
-    const maxCat = catList.length ? catList[0].value : 1;
+    const periodMax = periodRank.length ? periodRank[0].value : 1;
 
-    /* 近 6 个月趋势 */
+    /* ---- 近 6 个月趋势 ---- */
     const months = [];
     for (let i = 5; i >= 0; i--) {
       const key = addMonths(mk, -i);
@@ -42,7 +85,7 @@ Pages.money = {
     }
     const hasHistory = months.some((m) => m.value > 0);
 
-    /* 按日期分组 */
+    /* ---- 明细 ---- */
     const sorted = txns.slice().sort(byDateDesc);
     const groups = {};
     sorted.forEach((t) => {
@@ -64,48 +107,104 @@ Pages.money = {
           '<button class="btn primary" data-act="add">' + icon('plus') + '记一笔</button>'
       ) +
 
-      '<div class="grid grid-4">' +
-      statCard({ label: '支出', dot: true, value: fmtMoney(expenseTotal, 'CNY'), sub: expenses.length + ' 笔支出' }) +
-      statCard({ label: '收入', dot: true, value: fmtMoney(incomeTotal, 'CNY'), sub: incomes.length + ' 笔收入' }) +
-      statCard({ label: '结余', dot: true, value: fmtMoney(incomeTotal - expenseTotal, 'CNY'), sub: '收入 − 支出' }) +
-      statCard({
-        label: '预算',
-        dot: true,
-        value: budget ? fmtMoney(Math.max(0, remaining), 'CNY') : '未设置',
-        sub: budget
-          ? remaining >= 0
-            ? '预算 ' + fmtMoney(budget, 'CNY') + ' · 还剩 ' + pct(remaining, budget) + '%'
-            : '已超支 ' + fmtMoney(-remaining, 'CNY')
-          : '点右上角「预算」设置',
-      }) +
+      /* ---- 账单 ---- */
+      '<section class="card money-hero">' +
+      '<div class="money-hero-month"><span>账单 · ' + esc(year) + ' 年</span><b>' + Number(mk.slice(5, 7)) +
+      '<small>月</small></b></div>' +
+      '<div class="money-hero-metrics">' +
+      '<div><span>收入</span><b>' + fmtMoney(incomeTotal, 'CNY') + '</b></div>' +
+      '<div><span>支出</span><b>' + fmtMoney(expenseTotal, 'CNY') + '</b></div>' +
+      '<div><span>结余</span><b class="' + (incomeTotal - expenseTotal < 0 ? 'neg' : 'pos') + '">' +
+      fmtMoney(incomeTotal - expenseTotal, 'CNY') + '</b></div>' +
+      '</div>' +
+      '<div class="money-hero-count">' + txns.length + ' 笔记录</div>' +
+      '</section>' +
+
+      '<div class="grid grid-2 mt-16" style="align-items:start">' +
+
+      /* ---- 预算 ---- */
+      '<section class="card"><div class="card-head"><div><h2>' + Number(mk.slice(5, 7)) + ' 月总预算</h2>' +
+      '<p class="card-sub">' + (budget ? '按本月支出实时计算' : '设一个预算，看看还剩多少') + '</p></div>' +
+      '<button class="btn sm" data-act="setBudget">' + (budget ? '修改预算' : '+ 设置预算') + '</button></div>' +
+      '<div class="budget-body">' +
+      '<div class="budget-ring" style="--p:' + budgetPct + ';--ring:' + (overBudget ? '#dc2626' : '#16a34a') + '">' +
+      '<div class="budget-ring-in"><b>' + (budget ? (overBudget ? '超支' : budgetPct + '%') : '—') + '</b>' +
+      '<span>' + (budget ? '剩余' : '未设置') + '</span></div></div>' +
+      '<div class="budget-lines">' +
+      '<div><span>剩余预算</span><b class="' + (remaining < 0 ? 'neg' : '') + '">' +
+      (budget ? fmtMoney(remaining, 'CNY') : '—') + '</b></div>' +
+      '<div><span>本月预算</span><b>' + (budget ? fmtMoney(budget, 'CNY') : '—') + '</b></div>' +
+      '<div><span>本月支出</span><b>' + fmtMoney(expenseTotal, 'CNY') + '</b></div>' +
+      '</div></div></section>' +
+
+      /* ---- 资产管家 ---- */
+      '<section class="card"><div class="card-head"><div><h2>资产管家</h2>' +
+      '<p class="card-sub">' + (d.money.assets.length ? '资产减负债，就是净资产' : '把存款、负债记进来，看净资产') + '</p></div>' +
+      '<button class="btn sm" data-act="addAsset">' + icon('plus') + '添加</button></div>' +
+      '<div class="asset-sums">' +
+      '<div><span>净资产</span><b>' + fmtMoney(netWorth, 'CNY') + '</b></div>' +
+      '<div><span>资产</span><b class="pos">' + fmtMoney(assetTotal, 'CNY') + '</b></div>' +
+      '<div><span>负债</span><b class="neg">' + fmtMoney(debtTotal, 'CNY') + '</b></div>' +
+      '</div>' +
+      ((d.money.assets || []).length
+        ? '<div class="asset-list">' +
+          d.money.assets
+            .map(
+              (a) =>
+                '<div class="asset-row"><span class="chip ' + (a.type === 'liability' ? 'red' : 'green') + '">' +
+                (a.type === 'liability' ? '负债' : '资产') + '</span>' +
+                '<span class="asset-name">' + esc(a.name) + '</span>' +
+                '<b>' + fmtMoney(a.amount, 'CNY') + '</b>' +
+                '<button class="icon-btn danger" data-act="delAsset" data-id="' + a.id + '" aria-label="删除">' + icon('trash') + '</button></div>'
+            )
+            .join('') +
+          '</div>'
+        : '<div class="tiny muted mt-12">还没有资产记录，点右上角「添加」</div>') +
+      '</section>' +
+
       '</div>' +
 
       '<div class="grid grid-2 mt-16" style="align-items:start">' +
-      '<section class="card"><div class="card-head"><div><h2>分类占比</h2>' +
-      '<p class="card-sub">' + (expenses.length ? '按支出分类统计' : '还没有支出记录') + '</p></div></div>' +
-      (catList.length
+
+      /* ---- 支出分析 ---- */
+      '<section class="card"><div class="card-head"><div><h2>支出分析</h2>' +
+      '<p class="card-sub">' + esc(period.label) + ' · 总支出 ' + fmtMoney(periodTotal, 'CNY') +
+      ' · ' + period.avgLabel + ' ' + fmtMoney(periodAvg, 'CNY') + '</p></div>' +
+      '<div class="tabs money-range-tabs">' +
+      [['week', '周'], ['month', '月'], ['year', '年']]
+        .map(
+          (r) =>
+            '<button class="tab' + (this.range === r[0] ? ' active' : '') + '" data-act="setRange" data-range="' + r[0] + '">' + r[1] + '</button>'
+        )
+        .join('') +
+      '</div></div>' +
+      (periodRank.length
         ? '<div class="rank">' +
-          catList
+          periodRank
             .slice(0, 8)
             .map(
               (c) =>
                 '<div class="rank-row"><span class="rank-name">' + esc(c.name) + '</span>' +
-                '<span class="rank-bar"><i style="width:' + Math.max(2, Math.round((c.value / maxCat) * 100)) + '%"></i></span>' +
+                '<span class="rank-bar"><i style="width:' + Math.max(2, Math.round((c.value / periodMax) * 100)) + '%"></i></span>' +
+                '<span class="rank-pct">' + pct(c.value, periodTotal) + '%</span>' +
                 '<span class="rank-val">' + fmtMoney(c.value, 'CNY') + '</span></div>'
             )
             .join('') +
           '</div>'
-        : emptyState('这个月还没有支出', '记一笔之后，分类占比会出现在这里')) +
+        : emptyState('这段时间还没有支出', '记一笔之后，排行榜会出现在这里')) +
       '</section>' +
 
+      /* ---- 近 6 个月 ---- */
       '<section class="card"><div class="card-head"><div><h2>近 6 个月支出</h2>' +
       '<p class="card-sub">看看花销的走势</p></div></div>' +
       (hasHistory
-        ? barChart(months, { height: 126, format: (v) => (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v)) })
+        ? barChart(months, { height: 160, format: (v) => (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v)) })
         : emptyState('还没有历史数据', '多记几个月，就能看出花销变化')) +
       '</section>' +
+
       '</div>' +
 
+      /* ---- 明细 ---- */
       '<section class="card mt-16"><div class="card-head"><div><h2>明细</h2>' +
       '<p class="card-sub">' + (txns.length ? '共 ' + txns.length + ' 笔' : '这个月还没有记录') + '</p></div></div>' +
       (sorted.length
@@ -152,8 +251,23 @@ Pages.money = {
         Pages.money.month = monthKeyOf(todayKey());
         App.refresh();
       },
+      setRange(node) {
+        Pages.money.range = node.dataset.range;
+        App.refresh();
+      },
       setBudget() {
         openBudgetModal(Pages.money.month);
+      },
+      addAsset() {
+        openAssetModal(null);
+      },
+      delAsset(node) {
+        const id = node.dataset.id;
+        confirmDelete('删除这条资产记录？', () => {
+          removeById(Store.data.money.assets || [], id);
+          Store.save();
+          App.refresh();
+        });
       },
       add() {
         openTxnModal(null);
@@ -256,6 +370,55 @@ function openBudgetModal(mk) {
       Store.data.money.budgets[mk] = amount;
       Store.save();
       toast(amount ? '预算已设置为 ' + fmtMoney(amount, 'CNY') : '已取消本月预算');
+      App.refresh();
+    },
+  });
+}
+
+function openAssetModal(asset) {
+  const editing = !!asset;
+  openModal({
+    title: editing ? '编辑资产' : '添加资产',
+    subtitle: '存款、理财记成资产，信用卡、借款记成负债',
+    size: 'small',
+    body:
+      fInput('name', '名称', { value: editing ? asset.name : '', placeholder: '例如：招行存款 / 信用卡', required: true, maxlength: 30 }) +
+      fRow(
+        fSelect(
+          'type',
+          '类型',
+          [
+            { value: 'asset', label: '资产' },
+            { value: 'liability', label: '负债' },
+          ],
+          editing ? asset.type : 'asset'
+        ),
+        fNumber('amount', '金额（元）', { value: editing ? asset.amount : '', min: 0, step: '0.01', required: true })
+      ),
+    onSubmit(data) {
+      const name = String(data.name || '').trim();
+      const amount = Number(data.amount);
+      if (!name) {
+        toast('请填写名称', 'err');
+        return false;
+      }
+      if (!isFinite(amount) || amount < 0) {
+        toast('请填写正确的金额', 'err');
+        return false;
+      }
+      const payload = {
+        name: name,
+        type: data.type === 'liability' ? 'liability' : 'asset',
+        amount: amount,
+      };
+      Store.data.money.assets = Store.data.money.assets || [];
+      if (editing) {
+        Object.assign(asset, payload);
+      } else {
+        Store.data.money.assets.push(Object.assign({ id: uid(), createdAt: Date.now() }, payload));
+      }
+      Store.save();
+      toast(editing ? '资产已更新' : '资产已添加');
       App.refresh();
     },
   });

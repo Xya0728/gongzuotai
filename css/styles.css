@@ -1641,3 +1641,75 @@ body.modal-open { overflow: hidden; }
 
 .bmi-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .bmi-value { font-size: 18px; font-weight: 700; }
+
+/* ---------------- 消费记录改版 ---------------- */
+
+.money-hero { display: flex; align-items: center; gap: 36px; flex-wrap: wrap; }
+.money-hero-month { display: flex; flex-direction: column; min-width: 86px; }
+.money-hero-month span { font-size: 11px; color: var(--faint); letter-spacing: 0.02em; }
+.money-hero-month b { font-size: 46px; line-height: 1.05; letter-spacing: -0.04em; }
+.money-hero-month small { margin-left: 3px; color: var(--muted); font-size: 14px; font-weight: 550; }
+.money-hero-metrics { flex: 1; display: flex; gap: 48px; flex-wrap: wrap; }
+.money-hero-metrics > div { display: flex; flex-direction: column; gap: 3px; }
+.money-hero-metrics span { font-size: 11.5px; color: var(--faint); }
+.money-hero-metrics b { font-size: 19px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.money-hero-count { margin-left: auto; color: var(--muted); font-size: 11.5px; }
+.pos { color: var(--ok); }
+.neg { color: var(--bad); }
+
+.budget-body { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+.budget-ring {
+  position: relative;
+  width: 112px;
+  height: 112px;
+  flex: 0 0 112px;
+  border-radius: 50%;
+  background: conic-gradient(var(--ring, #16a34a) calc(var(--p, 0) * 1%), rgba(24, 33, 50, 0.075) 0);
+  display: grid;
+  place-items: center;
+}
+.budget-ring-in {
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.88);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+.budget-ring-in b { font-size: 19px; font-weight: 700; }
+.budget-ring-in span { font-size: 10.5px; color: var(--faint); }
+.budget-lines { flex: 1; min-width: 190px; display: flex; flex-direction: column; gap: 8px; }
+.budget-lines > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.budget-lines > div:last-child { border-bottom: 0; padding-bottom: 0; }
+.budget-lines span { font-size: 12px; color: var(--muted); }
+.budget-lines b { font-size: 13px; font-variant-numeric: tabular-nums; }
+
+.asset-sums { display: flex; gap: 28px; flex-wrap: wrap; }
+.asset-sums > div { display: flex; flex-direction: column; gap: 2px; }
+.asset-sums span { font-size: 11px; color: var(--faint); }
+.asset-sums b { font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.asset-list { margin-top: 12px; display: flex; flex-direction: column; }
+.asset-row { display: flex; align-items: center; gap: 8px; padding: 7px 2px; border-top: 1px solid var(--line-soft); }
+.asset-name { flex: 1; min-width: 0; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.asset-row b { font-size: 12.5px; font-variant-numeric: tabular-nums; }
+
+.money-range-tabs { margin-bottom: 0; }
+.money-range-tabs .tab { height: 27px; padding: 0 12px; font-size: 12px; }
+
+.rank-row { grid-template-columns: 62px 1fr 40px 74px; }
+.rank-pct { text-align: right; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 760px) {
+  .money-hero { gap: 18px; }
+  .money-hero-metrics { gap: 24px; }
+  .money-hero-count { margin-left: 0; }
+}
