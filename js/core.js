@@ -59,6 +59,9 @@ const ICONS = {
   star: '<path d="m12 3.8 2.5 5.1 5.6.8-4 4 .9 5.6-5-2.7-5 2.7.9-5.6-4-4 5.6-.8z"/>',
   grip: '<circle cx="9" cy="7" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="7" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="17" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="17" r="1.4" fill="currentColor" stroke="none"/>',
   sparkle: '<path d="M11 3.6 12.6 8l4.4 1.6-4.4 1.6L11 15.6 9.4 11.2 5 9.6 9.4 8z"/><path d="m17.8 14.4.9 2.4 2.4.9-2.4.9-.9 2.4-.9-2.4-2.4-.9 2.4-.9z"/>',
+  sun: '<circle cx="12" cy="12" r="4.2"/><path d="M12 3.2v2.1M12 18.7v2.1M3.2 12h2.1M18.7 12h2.1M5.8 5.8l1.5 1.5M16.7 16.7l1.5 1.5M18.2 5.8l-1.5 1.5M7.3 16.7l-1.5 1.5"/>',
+  cloud: '<path d="M7 18.5h10a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 8 9.7 4.4 4.4 0 0 0 7 18.5z"/>',
+  rain: '<path d="M7 15.5h10a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 8 6.7 4.4 4.4 0 0 0 7 15.5z"/><path d="M8.5 18.5 7.8 21M12 18.5 11.3 21M15.5 18.5l-.7 2.5"/>',
 };
 
 const PRIORITIES = [

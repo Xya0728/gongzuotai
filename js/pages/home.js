@@ -1,8 +1,83 @@
 'use strict';
 
 /* =========================================================
-   首页总览
+   首页总览 · 时钟 / 汕头天气 / 模块摘要
    ========================================================= */
+
+const WEATHER_CACHE_KEY = 'xya.weather.shantou.v1';
+const WEATHER_URL =
+  'https://api.open-meteo.com/v1/forecast?latitude=23.354&longitude=116.682' +
+  '&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m' +
+  '&timezone=Asia%2FShanghai';
+
+const WMO_TEXT = {
+  0: '晴',
+  1: '大部晴朗',
+  2: '多云',
+  3: '阴',
+  45: '有雾',
+  48: '雾凇',
+  51: '毛毛雨',
+  53: '小雨',
+  55: '细雨',
+  56: '冻雨',
+  57: '冻雨',
+  61: '小雨',
+  63: '中雨',
+  65: '大雨',
+  66: '冻雨',
+  67: '冻雨',
+  71: '小雪',
+  73: '中雪',
+  75: '大雪',
+  77: '雪粒',
+  80: '阵雨',
+  81: '阵雨',
+  82: '强阵雨',
+  85: '阵雪',
+  86: '阵雪',
+  95: '雷阵雨',
+  96: '雷阵雨',
+  99: '雷暴',
+};
+
+function homeWeatherText(code) {
+  return WMO_TEXT[code] || '多云';
+}
+
+function homeWeatherIcon(code) {
+  if (code === 0 || code === 1) return 'sun';
+  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82) || (code >= 95 && code <= 99)) return 'rain';
+  return 'cloud';
+}
+
+function homeHeroTone(hour) {
+  if (hour >= 5 && hour < 9) return { a: '#f59e0b', b: '#ec4899' };
+  if (hour >= 9 && hour < 12) return { a: '#0ea5e9', b: '#2563eb' };
+  if (hour >= 12 && hour < 17) return { a: '#2563eb', b: '#0d9488' };
+  if (hour >= 17 && hour < 20) return { a: '#7c3aed', b: '#db2777' };
+  return { a: '#1e3a8a', b: '#4c1d95' };
+}
+
+function homeReadWeatherCache() {
+  try {
+    const raw = localStorage.getItem(WEATHER_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.temp !== 'number') return null;
+    return parsed;
+  } catch (err) {
+    return null;
+  }
+}
+
+function homeWriteWeatherCache(data) {
+  try {
+    localStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify(data));
+  } catch (err) {
+    /* ignore */
+  }
+}
 
 function homeMiniCard(modId, main, sub) {
   const m = findById(MODULES, modId);
@@ -16,28 +91,19 @@ function homeMiniCard(modId, main, sub) {
   );
 }
 
-function quickBtn(act, iconName, label, color, soft) {
-  return (
-    '<button class="quick-btn" data-act="' + act + '">' +
-    '<span class="q-ico" style="background:' + soft + ';color:' + color + '">' + icon(iconName) + '</span>' +
-    esc(label) + '</button>'
-  );
-}
-
 Pages.home = {
+  _timer: null,
+  _weatherLoading: false,
+
   render(el) {
     const d = Store.data;
     const t = todayKey();
     const mk = monthKeyOf(t);
     const weekStart = weekStartKey(t);
+    const now = new Date();
+    const tone = homeHeroTone(now.getHours());
 
-    const planItems = d.plan.items
-      .filter((i) => i.date === t)
-      .sort((a, b) => (a.start || '99:99').localeCompare(b.start || '99:99') || (a.createdAt || 0) - (b.createdAt || 0));
-    const timed = planItems.filter((i) => i.start && i.end);
-    const overdue = d.plan.items.filter((i) => i.date < t);
-    const firstTimed = planItems.filter((i) => i.start)[0];
-
+    const planItems = d.plan.items.filter((i) => i.date === t);
     const memos = d.memos.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
     const goals = d.study.goals || [];
@@ -48,6 +114,11 @@ Pages.home = {
     const weekPlans = (d.fitness.plans || []).filter((p) => p.date >= weekStart && p.date <= addDays(weekStart, 6));
     const routineNames = (d.fitness.routines || []).map((r) => r.name).filter(Boolean);
 
+    const todayMeals = d.diet.meals.filter((m) => m.date === t);
+    const dietKcal = sumBy(todayMeals, (m) => Number(m.calories) || 0);
+    const water = Number(d.diet.water[t]) || 0;
+    const waterGoal = Number(d.settings.waterGoal) || 2000;
+
     const spend = sumBy(
       d.money.txns.filter((x) => x.type === 'expense' && x.date.indexOf(mk) === 0),
       (x) => x.amount
@@ -57,27 +128,19 @@ Pages.home = {
     const visible = App.visibleModules().map((m) => m.id);
     const has = (id) => visible.indexOf(id) >= 0;
 
-    /* ---- 各模块摘要 ---- */
     const cards = [];
-
     if (has('work')) {
       const monthOrders = d.work.orders.filter((o) => o.date.indexOf(mk) === 0 && o.status !== 'refund');
       const sales = sumBy(monthOrders, (o) => toCNY(o.amount, o.currency));
       const restock = d.work.stock.filter((s) => Number(s.qty) <= Number(s.safe)).length;
-      cards.push(
-        homeMiniCard(
-          'work',
-          fmtMoney(sales, 'CNY'),
-          '本月 ' + monthOrders.length + ' 单 · 待补货 ' + restock + ' 个'
-        )
-      );
+      cards.push(homeMiniCard('work', fmtMoney(sales, 'CNY'), '本月 ' + monthOrders.length + ' 单 · 待补货 ' + restock + ' 个'));
     }
     if (has('study')) {
       cards.push(
         homeMiniCard(
           'study',
-          goals.length ? '目标 ' + goals.length + ' 个' : '还没有目标',
-          upcomingGoal ? '最近截止 ' + fmtDateCN(upcomingGoal.deadline) : '去设一个学习目标'
+          goals.length ? '项目 ' + goals.length + ' 个' : '还没有项目',
+          upcomingGoal ? '最近截止 ' + fmtDateCN(upcomingGoal.deadline) : '去加一个学习项目'
         )
       );
     }
@@ -91,15 +154,11 @@ Pages.home = {
       );
     }
     if (has('diet')) {
-      const water = Number(d.diet.water[t]) || 0;
-      const goal = Number(d.settings.waterGoal) || 2000;
-      const todayMeals = d.diet.meals.filter((m) => m.date === t);
-      const kcal = sumBy(todayMeals, (m) => Number(m.calories) || 0);
       cards.push(
         homeMiniCard(
           'diet',
-          kcal ? '今日搭配 ' + kcal + ' kcal' : '今日还没排搭配',
-          '饮水 ' + water + ' / ' + goal + ' ml'
+          dietKcal ? '今日搭配 ' + dietKcal + ' kcal' : '今日还没排搭配',
+          '饮水 ' + water + ' / ' + waterGoal + ' ml'
         )
       );
     }
@@ -125,23 +184,30 @@ Pages.home = {
     }
 
     el.innerHTML =
-      pageHead(
-        greeting(),
-        fmtDateCN(t, true) +
-          ' · ' +
-          (planItems.length ? '今天有 ' + planItems.length + ' 项计划' : '今天还没有安排计划') +
-          ' · 本周训练 ' + weekPlans.length + ' 次',
-        '<a class="btn primary" href="#/plan">' + icon('calendar') + '今日计划</a>'
-      ) +
-      '<div class="grid grid-4">' +
+      '<section class="home-hero" style="--hero-a:' + tone.a + ';--hero-b:' + tone.b + '">' +
+      '<div class="home-hero-main">' +
+      '<div class="hero-eyebrow">' + esc(fmtDateCN(t, true)) + ' · ' + esc(greeting()) + '</div>' +
+      '<div class="hero-clock" id="home-clock">--:--<small>:--</small></div>' +
+      '<div class="hero-sub">' +
+      '<span>' + (planItems.length ? '今天有 ' + planItems.length + ' 项安排' : '今天还没有安排') + '</span>' +
+      '<span>本周训练 ' + weekPlans.length + ' 次</span>' +
+      (dietKcal ? '<span>今日搭配 ' + dietKcal + ' kcal</span>' : '') +
+      '</div>' +
+      '</div>' +
+      '<div class="home-weather" id="home-weather">' +
+      '<div class="weather-top">' +
+      '<span class="weather-ico" id="weather-ico">' + icon('cloud') + '</span>' +
+      '<div class="weather-main"><b id="weather-temp">--°</b>' +
+      '<span id="weather-desc">汕头 · 载入中</span></div>' +
+      '</div>' +
+      '<div class="weather-meta" id="weather-meta">正在获取天气…</div>' +
+      '<button type="button" class="weather-refresh" data-act="refreshWeather">' + icon('clock') + '刷新</button>' +
+      '</div>' +
+      '</section>' +
+
+      '<div class="grid grid-4 mt-16">' +
       statCard({
-        label: '今日计划',
-        dot: true,
-        value: planItems.length + '<small>项</small>',
-        sub: firstTimed ? '最早 ' + firstTimed.start + ' 开始' : planItems.length ? '还没有排时间' : '还没有安排',
-      }) +
-      statCard({
-        label: '学习目标',
+        label: '学习项目',
         dot: true,
         value: goals.length + '<small>个</small>',
         sub: upcomingGoal ? '最近截止 ' + fmtDateCN(upcomingGoal.deadline) : '还没有设截止日期',
@@ -160,6 +226,12 @@ Pages.home = {
           : '去健身页安排本周训练',
       }) +
       statCard({
+        label: '今日热量',
+        dot: true,
+        value: dietKcal + '<small>kcal</small>',
+        sub: water + ' / ' + waterGoal + ' ml 饮水',
+      }) +
+      statCard({
         label: '本月支出',
         dot: true,
         value: fmtMoney(spend, 'CNY'),
@@ -168,50 +240,11 @@ Pages.home = {
       '</div>' +
 
       '<div class="grid home-cols mt-16">' +
-      '<div class="stack">' +
-
-      /* ---- 今日计划 ---- */
-      '<section class="card">' +
-      '<div class="card-head"><div><h2>今日计划</h2>' +
-      '<p class="card-sub">' +
-      (planItems.length ? '共 ' + planItems.length + ' 项，已排时间 ' + timed.length + ' 项' : '把今天要做的事排进来') +
-      '</p></div><a class="link" href="#/plan">查看全部 ›</a></div>' +
-      (overdue.length
-        ? '<div class="hint-bar mt-12"><span>有 ' + overdue.length + ' 项之前排的计划</span>' +
-          '<button class="btn sm" data-act="pullOverdue">挪到今天</button></div>'
-        : '') +
-      '<div class="list mt-12">' +
-      (planItems.length
-        ? planItems
-            .slice(0, 6)
-            .map(
-              (i) =>
-                '<div class="item">' +
-                '<div class="item-body"><div class="item-title">' + esc(i.title) + '</div>' +
-                '<div class="item-meta">' +
-                (i.start ? '<span class="chip gray">' + esc(i.start) + (i.end ? '–' + esc(i.end) : '') + '</span>' : '<span class="chip gray">未排时间</span>') +
-                chipsFor(PRIORITIES, i.priority) +
-                (i.note ? '<span>' + esc(i.note) + '</span>' : '') +
-                '</div></div></div>'
-            )
-            .join('')
-        : emptyState('今天还没有计划', '在下面直接写一件要做的事，回车即可加入')) +
-      '</div>' +
-      (planItems.length > 6 ? '<div class="tiny muted mt-8">还有 ' + (planItems.length - 6) + ' 项，去今日计划查看</div>' : '') +
-      '<form class="quick-add" id="home-plan-add"><input class="input" name="title" maxlength="80" placeholder="添加一件今天要做的事，回车保存">' +
-      '<button class="btn primary sm" type="submit">' + icon('plus') + '添加</button></form>' +
-      '</section>' +
-
-      /* ---- 模块摘要 ---- */
       '<section class="card"><div class="card-head"><div><h2>各模块摘要</h2>' +
       '<p class="card-sub">点开任意模块继续</p></div></div>' +
       '<div class="mini-grid">' + cards.join('') + '</div></section>' +
 
-      '</div>' +
-
-      /* ---- 快速备忘 ---- */
-      '<div class="stack"><section class="card">' +
-      '<div class="card-head"><div><h2>快速备忘</h2><p class="card-sub">' +
+      '<section class="card"><div class="card-head"><div><h2>快速备忘</h2><p class="card-sub">' +
       (memos.length ? memos.length + ' 条备忘' : '随手记，不怕忘') + '</p></div></div>' +
       '<form class="memo-add" id="memo-add"><input class="input" name="text" maxlength="120" placeholder="记一句…">' +
       '<button class="btn sm" type="submit">记下</button></form>' +
@@ -231,50 +264,11 @@ Pages.home = {
       '</div>' +
       (memos.length > 10 ? '<div class="tiny muted mt-8">还有 ' + (memos.length - 10) + ' 条未显示</div>' : '') +
       '</section>' +
-      '<section class="card"><div class="card-head"><div><h2>快捷记录</h2>' +
-      '<p class="card-sub">不用切换模块，直接打开表单</p></div></div>' +
-      '<div class="quick-grid">' +
-      quickBtn('qPlan', 'calendar', '添加计划', '#2563eb', '#e8effd') +
-      quickBtn('qTxn', 'wallet', '记一笔', '#b45309', '#fbf0dd') +
-      quickBtn('qStudy', 'book', '学习目标', '#7c3aed', '#f0eafd') +
-      quickBtn('qTrain', 'dumbbell', '训练安排', '#ea580c', '#fdeee4') +
-      quickBtn('qDiet', 'bowl', '饮食搭配', '#16a34a', '#e6f5ea') +
-      quickBtn('qDevice', 'gamepad', '添加设备', '#db2777', '#fce8f0') +
-      '</div></section>' +
-      '</div>' +
       '</div>';
 
-    /* ---- 事件 ---- */
     bind(el, {
-      qPlan() {
-        openPlanModal(null, todayKey());
-      },
-      qTxn() {
-        openTxnModal(null);
-      },
-      qStudy() {
-        openGoalModal(null);
-      },
-      qTrain() {
-        App.go('fitness');
-      },
-      qDiet() {
-        App.go('diet');
-      },
-      qDevice() {
-        openDeviceModal(null);
-      },
-      pullOverdue() {
-        let moved = 0;
-        d.plan.items.forEach((i) => {
-          if (i.date < t) {
-            i.date = t;
-            moved++;
-          }
-        });
-        Store.save();
-        toast('已把 ' + moved + ' 项计划挪到今天');
-        App.refresh();
+      refreshWeather() {
+        Pages.home.loadWeather(el, true);
       },
       delMemo(node) {
         removeById(d.memos, node.dataset.id);
@@ -283,25 +277,8 @@ Pages.home = {
       },
     });
 
-    const planForm = el.querySelector('#home-plan-add');
-    planForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const title = String(new FormData(planForm).get('title') || '').trim();
-      if (!title) return;
-      d.plan.items.push({
-        id: uid(),
-        date: t,
-        title: title,
-        start: '',
-        end: '',
-        priority: 'mid',
-        note: '',
-        createdAt: Date.now(),
-      });
-      Store.save();
-      toast('已加入今日计划');
-      App.refresh();
-    });
+    this.startClock(el);
+    this.loadWeather(el);
 
     const memoForm = el.querySelector('#memo-add');
     memoForm.addEventListener('submit', (e) => {
@@ -312,5 +289,109 @@ Pages.home = {
       Store.save();
       App.refresh();
     });
+  },
+
+  startClock(el) {
+    if (this._timer) {
+      clearInterval(this._timer);
+      this._timer = null;
+    }
+    const node = el.querySelector('#home-clock');
+    if (!node) return;
+    const tick = () => {
+      if (!document.body.contains(node)) {
+        clearInterval(Pages.home._timer);
+        Pages.home._timer = null;
+        return;
+      }
+      const d = new Date();
+      node.innerHTML = pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + '<small>:' + pad2(d.getSeconds()) + '</small>';
+    };
+    tick();
+    this._timer = setInterval(tick, 1000);
+  },
+
+  loadWeather(el, force) {
+    const box = el.querySelector('#home-weather');
+    if (!box) return;
+    const cached = homeReadWeatherCache();
+    const fresh = cached && Date.now() - (cached.at || 0) < 15 * 60 * 1000;
+    if (cached) this.paintWeather(el, cached, !fresh ? 'offline' : '');
+    if (fresh && !force) return;
+    if (this._weatherLoading) return;
+    this._weatherLoading = true;
+
+    const done = (data, note) => {
+      this._weatherLoading = false;
+      if (!document.body.contains(box)) return;
+      this.paintWeather(el, data, note);
+    };
+
+    const fail = () => {
+      this._weatherLoading = false;
+      if (!document.body.contains(box)) return;
+      if (cached) this.paintWeather(el, cached, 'offline');
+      else this.paintWeather(el, null, 'fail');
+    };
+
+    try {
+      if (typeof fetch !== 'function') {
+        fail();
+        return;
+      }
+      const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+      const timer = setTimeout(() => {
+        if (ctrl) ctrl.abort();
+      }, 6000);
+      fetch(WEATHER_URL, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
+        .then((res) => {
+          if (!res.ok) throw new Error('weather http ' + res.status);
+          return res.json();
+        })
+        .then((json) => {
+          clearTimeout(timer);
+          const cur = json && json.current;
+          if (!cur || typeof cur.temperature_2m !== 'number') throw new Error('weather payload');
+          const data = {
+            at: Date.now(),
+            temp: Math.round(cur.temperature_2m),
+            feels: Math.round(cur.apparent_temperature),
+            humidity: Math.round(cur.relative_humidity_2m),
+            wind: Math.round(cur.wind_speed_10m),
+            code: Number(cur.weather_code) || 0,
+          };
+          homeWriteWeatherCache(data);
+          done(data, '');
+        })
+        .catch(() => {
+          clearTimeout(timer);
+          fail();
+        });
+    } catch (err) {
+      fail();
+    }
+  },
+
+  paintWeather(el, data, note) {
+    const box = el.querySelector('#home-weather');
+    if (!box) return;
+    const iconBox = box.querySelector('#weather-ico');
+    const temp = box.querySelector('#weather-temp');
+    const desc = box.querySelector('#weather-desc');
+    const meta = box.querySelector('#weather-meta');
+    if (!data) {
+      iconBox.innerHTML = icon('cloud');
+      temp.textContent = '—';
+      desc.textContent = '汕头 · 天气暂不可用';
+      meta.textContent = '需要联网获取，检查网络后点刷新';
+      return;
+    }
+    const text = homeWeatherText(data.code);
+    iconBox.innerHTML = icon(homeWeatherIcon(data.code));
+    temp.textContent = data.temp + '°';
+    desc.textContent = '汕头 · ' + text + (note === 'offline' ? ' · 离线' : '');
+    meta.textContent =
+      '体感 ' + data.feels + '° · 湿度 ' + data.humidity + '% · 风 ' + data.wind + ' km/h' +
+      (note === 'offline' ? ' · 上次更新 ' + saveClock(new Date(data.at)) : '');
   },
 };

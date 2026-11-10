@@ -69,11 +69,14 @@ test('应用初始化完成', async () => {
   eq(App.route, 'home', '默认路由');
 });
 
-test('首页渲染出今日计划与快速备忘', async () => {
+test('首页渲染出时钟、汕头天气与备忘', async () => {
   resetData();
-  includes(mainText(), '今日计划', '首页');
   includes(mainText(), '快速备忘', '首页');
   includes(mainText(), '各模块摘要', '首页');
+  includes(mainText(), '汕头', '天气');
+  assert(document.querySelector('#home-clock'), '应有简约时钟');
+  assert(document.querySelector('#home-weather'), '应有天气卡');
+  assert(mainText().indexOf('快捷记录') === -1, '快捷记录应移除');
 });
 
 test('九个页面都能正常渲染', async () => {
@@ -116,6 +119,7 @@ test('P1 页面背景为柔和渐变', async () => {
 
 test('P1 标题字号与视觉层级', async () => {
   resetData();
+  showPage('plan');
   const size = parseFloat(css('.page-head h1', 'fontSize'));
   assert(size >= 25, '页面标题偏小：' + size);
   const weight = parseInt(css('.page-head h1', 'fontWeight'), 10);
@@ -124,6 +128,7 @@ test('P1 标题字号与视觉层级', async () => {
 
 test('P1 主按钮有玻璃质感', async () => {
   resetData();
+  showPage('plan');
   const bg = css('.btn.primary', 'backgroundImage') + ' ' + css('.btn.primary', 'backgroundColor');
   assert(/gradient/.test(bg) || /rgb/.test(bg), '主按钮缺少填充');
   assert(css('.btn.primary', 'boxShadow') !== 'none', '主按钮缺少投影');
@@ -509,24 +514,13 @@ test('P11 食物可以拖进晚餐', async () => {
   eq(Store.data.diet.meals[0].name, food.name);
 });
 
-test('P12 首页快捷记录入口都能打开表单或页面', async () => {
+test('P12 首页已移除今日计划与快捷记录', async () => {
   resetData();
   App.render();
-  const actions = ['qPlan', 'qTxn', 'qStudy', 'qTrain', 'qDiet', 'qDevice'];
-  for (const act of actions) {
-    const btn = document.querySelector('.quick-btn[data-act="' + act + '"]');
-    assert(btn, '缺少快捷入口 ' + act);
-    btn.click();
-    await tick(150);
-    const opened = document.querySelector('#modal-root .overlay') || App.route !== 'home';
-    assert(opened, '入口没有反应：' + act);
-    closeModal();
-    if (App.route !== 'home') {
-      App.go('home');
-      App.render();
-      await tick(80);
-    }
-  }
+  eq(document.querySelectorAll('.quick-btn').length, 0, '不应再有快捷记录按钮');
+  assert(mainText().indexOf('快捷记录') === -1, '不应出现快捷记录');
+  assert(mainText().indexOf('今日计划') === -1, '不应再显示今日计划栏');
+  includes(mainText(), '各模块摘要', '模块摘要保留');
 });
 
 /* ---------------- P13 智能排程 ---------------- */
@@ -779,7 +773,7 @@ test('P14 首页与设置不再展示打卡统计', async () => {
   assert(mainText().indexOf('已完成') === -1, '首页不应出现已完成');
   assert(mainText().indexOf('连续') === -1, '首页不应出现连续天数');
   eq(document.querySelectorAll('.tick').length, 0, '首页不应有勾选');
-  includes(mainText(), '学习目标');
+  includes(mainText(), '学习项目');
   includes(mainText(), '本周训练');
 
   showPage('settings');
@@ -989,6 +983,24 @@ test('P17 新增项目只填分类和截止日', async () => {
   eq(goal.deadline, addDays(t, 5), '截止日');
   assert(!goal.targetHours, '不应写入目标时长');
   includes(mainText(), '5 天后截止', '页面显示截止');
+});
+
+/* ---------------- P18 首页时钟与天气 ---------------- */
+
+test('P18 首页顶部有时钟、天气和渐变色调', async () => {
+  resetData();
+  App.render();
+  const hero = document.querySelector('.home-hero');
+  assert(hero, '应有顶部 Hero');
+  const bg = getComputedStyle(hero).backgroundImage;
+  assert(/gradient/.test(bg), 'Hero 应是渐变背景：' + bg);
+  const clock = document.querySelector('#home-clock');
+  assert(/\d{2}:\d{2}/.test(clock.textContent), '时钟格式：' + clock.textContent);
+  const before = clock.textContent;
+  await tick(1100);
+  assert(clock.textContent !== before, '时钟应每秒更新');
+  includes(document.querySelector('#home-weather').textContent, '汕头', '天气城市');
+  assert(document.querySelector('#weather-temp'), '应有温度');
 });
 
 /* ---------------- 运行 ---------------- */
