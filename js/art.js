@@ -19,7 +19,6 @@ const EQUIPMENT_OPTIONS = [
 const FOOD_CATEGORIES = ['蛋奶', '主食', '肉类', '蔬菜', '水果', '饮品', '其他'];
 
 const DEVICE_TYPES = [
-  { value: 'monitor', label: '显示器' },
   { value: 'keyboard', label: '键盘' },
   { value: 'mouse', label: '鼠标' },
   { value: 'headset', label: '耳机' },
@@ -219,5 +218,5 @@ function foodArt(name, category) {
 
 function deviceArt(type) {
   const found = DEVICE_TYPES.find((item) => item.value === type);
-  return artSVG(type || 'monitor', found ? found.label : '设备');
+  return artSVG(type || 'keyboard', found ? found.label : '设备');
 }

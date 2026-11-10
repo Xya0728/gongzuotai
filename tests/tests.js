@@ -267,69 +267,34 @@ test('P3 饮食显示食物插画与图库卡片', async () => {
   assert(cards[0].querySelector('svg'), '图库卡片应有插画');
 });
 
-/* ---------------- P4 我的设备 / 我的游戏 ---------------- */
+/* ---------------- P12 仅保留我的设备 ---------------- */
 
-test('P4 游戏娱乐分为我的游戏与我的设备', async () => {
-  resetData();
-  Pages.games.tab = 'games';
-  showPage('games');
-  const tabs = document.querySelectorAll('.tabs .tab');
-  eq(tabs.length, 2, '标签数量');
-  includes(tabs[0].textContent, '我的游戏');
-  includes(tabs[1].textContent, '我的设备');
-  document.querySelector('[data-act="tab"][data-tab="devices"]').click();
-  await tick(160);
-  eq(Pages.games.tab, 'devices', '切换后的标签');
-  eq(document.querySelectorAll('.device-col').length, 4, '四类设备');
-});
-
-test('P4 我的设备展示显示器/键盘/鼠标/耳机', async () => {
+test('P12 游戏娱乐只保留我的设备', async () => {
   resetData();
   Store.data.games.devices = [
-    { id: 'dv1', type: 'monitor', brand: 'LG', model: '27GP950', spec: '27 英寸 4K 144Hz', purchasedAt: todayKey(), price: 4999, note: '' },
-    { id: 'dv2', type: 'keyboard', brand: 'Keychron', model: 'Q1', spec: '75% 机械键盘', price: 899 },
-    { id: 'dv3', type: 'mouse', brand: 'Logitech', model: 'GPX', spec: '无线 60g', price: 999 },
-    { id: 'dv4', type: 'headset', brand: 'Sony', model: 'WH-1000XM5', spec: '降噪', price: 2999 },
+    { id: 'd1', type: 'keyboard', brand: 'Keychron', model: 'Q1', spec: '75% 机械键盘', price: 899 },
+    { id: 'd2', type: 'mouse', brand: 'Logitech', model: 'GPX', spec: '无线 60g', price: 999 },
+    { id: 'd3', type: 'headset', brand: 'Sony', model: 'WH-1000XM5', spec: '无线降噪', price: 2999 },
   ];
   Store.save();
-  Pages.games.tab = 'devices';
   showPage('games');
-  eq(document.querySelectorAll('.device-card').length, 4, '设备卡片数');
-  const text = mainText();
-  includes(text, 'LG');
-  includes(text, 'Keychron');
-  includes(text, 'GPX');
-  includes(text, 'WH-1000XM5');
-  includes(text, '27 英寸 4K 144Hz');
-  assert(document.querySelector('.device-ico svg'), '设备插画');
+  assert(mainText().indexOf('我的游戏') === -1, '不应再有我的游戏');
+  eq(document.querySelectorAll('.device-col').length, 3, '三类设备');
+  const labels = Array.prototype.map.call(document.querySelectorAll('.device-col h2'), (el) => el.textContent);
+  eq(labels.join(','), '键盘,鼠标,耳机', '设备类型顺序');
+  eq(document.querySelectorAll('.device-card').length, 3, '设备卡片数');
+  includes(mainText(), 'Keychron');
 });
 
-/* ---------------- P5 预置游戏 ---------------- */
-
-test('P5 默认游戏是「无畏契约」和「王者荣耀」', async () => {
+test('P12 设备类型只有键盘/鼠标/耳机', async () => {
+  eq(DEVICE_TYPES.length, 3, '设备类型数量');
+  eq(
+    DEVICE_TYPES.map((item) => item.label).join(','),
+    '键盘,鼠标,耳机',
+    '设备类型'
+  );
   resetData();
-  const titles = Store.data.games.items.map((g) => g.title);
-  eq(titles.length, 2, '默认游戏数量');
-  includes(titles.join(','), '无畏契约');
-  includes(titles.join(','), '王者荣耀');
-  Pages.games.tab = 'games';
-  showPage('games');
-  includes(mainText(), '无畏契约');
-  includes(mainText(), '王者荣耀');
-});
-
-test('P5 预置游戏只种一次，不会重复', async () => {
-  Store.data.games.items = [];
-  Store.data.settings.seededGames = false;
-  Store.save();
-  Store.load();
-  eq(Store.data.games.items.length, 2, '重新载入后补齐预置游戏');
-
-  Store.data.games.items = [];
-  Store.data.settings.seededGames = true;
-  Store.save();
-  Store.load();
-  eq(Store.data.games.items.length, 0, '用户删光后不应强行加回来');
+  eq(Store.data.games.items.length, 0, '默认不再预置游戏');
 });
 
 /* ---------------- P6 保存 ---------------- */
@@ -528,6 +493,20 @@ test('P11 食物可以拖进晚餐', async () => {
   eq(Store.data.diet.meals.length, 1, '晚餐记录');
   eq(Store.data.diet.meals[0].type, 'dinner');
   eq(Store.data.diet.meals[0].name, food.name);
+});
+
+test('P12 首页快捷记录入口都能打开表单', async () => {
+  resetData();
+  App.render();
+  const buttons = Array.prototype.slice.call(document.querySelectorAll('.quick-btn'));
+  assert(buttons.length >= 6, '快捷入口数量');
+  for (let i = 0; i < buttons.length; i++) {
+    buttons[i].click();
+    await tick(150);
+    assert(document.querySelector('#modal-root .overlay'), '入口打不开表单：' + buttons[i].textContent.trim());
+    closeModal();
+    await tick(60);
+  }
 });
 
 /* ---------------- 运行 ---------------- */

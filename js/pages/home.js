@@ -43,8 +43,7 @@ Pages.home = {
     const studyToday = sumBy(d.study.logs.filter((l) => l.date === t), (l) => l.minutes);
     const studyWeek = sumBy(d.study.logs.filter((l) => l.date >= weekStart && l.date <= t), (l) => l.minutes);
 
-    const gameWeek = sumBy(d.games.sessions.filter((s) => s.date >= weekStart && s.date <= t), (s) => s.minutes);
-    const gameLimit = Number(d.settings.weeklyGameLimit) || 0;
+    const weekSessions = d.fitness.sessions.filter((s) => s.date >= weekStart && s.date <= t);
 
     const spend = sumBy(
       d.money.txns.filter((x) => x.type === 'expense' && x.date.indexOf(mk) === 0),
@@ -102,12 +101,13 @@ Pages.home = {
       );
     }
     if (has('games')) {
-      const playing = d.games.items.filter((g) => g.status === 'playing').length;
+      const devices = d.games.devices || [];
+      const countType = (type) => devices.filter((item) => item.type === type).length;
       cards.push(
         homeMiniCard(
           'games',
-          '本周 ' + hoursText(gameWeek),
-          '在玩 ' + playing + ' 款' + (gameLimit ? ' · 上限 ' + gameLimit + ' 小时' : '')
+          devices.length ? '共 ' + devices.length + ' 件设备' : '还没有设备',
+          '键盘 ' + countType('keyboard') + ' · 鼠标 ' + countType('mouse') + ' · 耳机 ' + countType('headset')
         )
       );
     }
@@ -146,10 +146,12 @@ Pages.home = {
         sub: '本周累计 ' + hoursText(studyWeek),
       }) +
       statCard({
-        label: '本周娱乐',
+        label: '本周训练',
         dot: true,
-        value: hoursText(gameWeek),
-        sub: gameLimit ? '每周上限 ' + gameLimit + ' 小时' : '还没有设置上限',
+        value: weekSessions.length + '<small>次</small>',
+        sub: weekSessions.length
+          ? '共 ' + sumBy(weekSessions, (s) => sessionSets(s)) + ' 组 · ' + fmtNum(Math.round(sumBy(weekSessions, (s) => sessionVolume(s)))) + ' kg'
+          : '本周还没有训练',
       }) +
       statCard({
         label: '本月支出',
@@ -242,7 +244,7 @@ Pages.home = {
       quickBtn('qStudy', 'book', '学习打卡', '#7c3aed', '#f0eafd') +
       quickBtn('qTrain', 'dumbbell', '记录训练', '#ea580c', '#fdeee4') +
       quickBtn('qDiet', 'bowl', '添加饮食', '#16a34a', '#e6f5ea') +
-      quickBtn('qGame', 'gamepad', '游戏时长', '#db2777', '#fce8f0') +
+      quickBtn('qDevice', 'gamepad', '添加设备', '#db2777', '#fce8f0') +
       '</div></section>' +
       '</div>' +
       '</div>';
@@ -264,8 +266,8 @@ Pages.home = {
       qDiet() {
         openFoodModal(todayKey(), 'breakfast');
       },
-      qGame() {
-        openGameSessionModal();
+      qDevice() {
+        openDeviceModal(null);
       },
       togglePlan(node) {
         const item = findById(d.plan.items, node.dataset.id);

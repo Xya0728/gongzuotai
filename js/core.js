@@ -94,12 +94,6 @@ const MEALS = [
   { value: 'snack', label: '加餐' },
 ];
 
-const GAME_STATUS = [
-  { value: 'want', label: '想玩', tone: 'violet' },
-  { value: 'playing', label: '在玩', tone: 'blue' },
-  { value: 'done', label: '已通关', tone: 'green' },
-];
-
 const BODY_PARTS = ['胸', '背', '肩', '腿', '臀', '手臂', '核心', '有氧', '全身'];
 
 /* =========================================================
@@ -342,20 +336,12 @@ function studyStreak(logs) {
    数据层
    ========================================================= */
 
-function defaultGames() {
-  return [
-    { id: 'game-valorant', title: '无畏契约', platform: 'PC', status: 'playing', rating: 0, note: '' },
-    { id: 'game-hok', title: '王者荣耀', platform: '手机', status: 'playing', rating: 0, note: '' },
-  ];
-}
-
 function defaultData() {
   return {
     version: 1,
     createdAt: todayKey(),
     settings: {
       rates: { CNY: 1, USD: 7.2, EUR: 7.85, GBP: 9.15, JPY: 0.048, HKD: 0.92 },
-      weeklyGameLimit: 10,
       waterGoal: 2000,
       seededGames: false,
       waterCup: 250,
@@ -388,7 +374,7 @@ function defaultData() {
       ],
       water: {},
     },
-    games: { items: defaultGames(), sessions: [], devices: [] },
+    games: { items: [], sessions: [], devices: [] },
     money: {
       txns: [],
       budgets: {},
@@ -442,7 +428,6 @@ const Store = {
     }
     this.data = mergeDeep(defaultData(), saved && typeof saved === 'object' ? saved : {});
     if (!this.ok) return;
-    this.ensureSeedData();
     if (saved) this.lastSavedAt = new Date();
     if (!raw) this.save();
     this.loadedAt = new Date();
@@ -456,13 +441,6 @@ const Store = {
       this.ok = false;
       toast('保存失败：浏览器本地存储不可用', 'err');
       return false;
-    }
-  },
-
-  ensureSeedData() {
-    if (!this.data.settings.seededGames) {
-      if (!this.data.games.items.length) this.data.games.items = defaultGames();
-      this.data.settings.seededGames = true;
     }
   },
 
@@ -533,8 +511,7 @@ const Store = {
       this.serverPath = payload.path || '';
       if (payload.data && typeof payload.data === 'object') {
         this.data = mergeDeep(defaultData(), payload.data);
-        this.ensureSeedData();
-      } else {
+          } else {
         await this.pushToServer();
       }
       this.lastSavedAt = payload.savedAt ? new Date(payload.savedAt) : new Date();

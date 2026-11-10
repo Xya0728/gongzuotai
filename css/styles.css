@@ -1157,7 +1157,7 @@ body.modal-open { overflow: hidden; }
 
 /* ---------------- 我的设备 ---------------- */
 
-.device-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.device-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .device-col { padding: 16px 16px 14px; }
 .device-list { display: flex; flex-direction: column; gap: 9px; }
 .device-card {

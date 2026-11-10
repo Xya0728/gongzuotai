@@ -62,9 +62,6 @@ Pages.settings = {
       '<section class="card"><div class="card-head"><div><h2>日常偏好</h2>' +
       '<p class="card-sub">影响各模块里的目标和提醒</p></div></div>' +
       '<form id="pref-form">' +
-      '<div class="setting-row"><div><div class="s-title">每周娱乐上限</div>' +
-      '<div class="s-desc">游戏模块会显示是否超出，单位：小时</div></div>' +
-      '<div class="s-ctl"><input class="input" type="number" name="weeklyGameLimit" min="0" step="1" value="' + esc(s.weeklyGameLimit) + '"></div></div>' +
       '<div class="setting-row"><div><div class="s-title">每日饮水目标</div>' +
       '<div class="s-desc">饮食模块的饮水进度，单位：毫升</div></div>' +
       '<div class="s-ctl"><input class="input" type="number" name="waterGoal" min="0" step="50" value="' + esc(s.waterGoal) + '"></div></div>' +
@@ -161,14 +158,12 @@ Pages.settings = {
     el.querySelector('#pref-form').addEventListener('submit', (e) => {
       e.preventDefault();
       const data = new FormData(e.target);
-      const limit = Number(data.get('weeklyGameLimit'));
       const goal = Number(data.get('waterGoal'));
       const cup = Number(data.get('waterCup'));
-      if (!isFinite(limit) || limit < 0 || !isFinite(goal) || goal < 0 || !isFinite(cup) || cup < 50) {
+      if (!isFinite(goal) || goal < 0 || !isFinite(cup) || cup < 50) {
         toast('请填写有效的数值', 'err');
         return;
       }
-      s.weeklyGameLimit = limit;
       s.waterGoal = goal;
       s.waterCup = cup;
       Store.save();
