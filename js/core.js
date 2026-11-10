@@ -390,9 +390,36 @@ function defaultData() {
     study: { goals: [], logs: [], categories: ['书籍', '乐器', '课程'] },
     fitness: {
       routines: [
-        { id: 'rt-push', name: '推日', note: '胸 / 肩 / 三头' },
-        { id: 'rt-pull', name: '拉日', note: '背 / 二头' },
-        { id: 'rt-legs', name: '腿日', note: '股四 / 臀 / 腘绳' },
+        {
+          id: 'rt-push',
+          name: '推日',
+          note: '胸 / 肩 / 三头',
+          exercises: [
+            { part: '胸', equipment: 'barbell', name: '卧推', sets: '4×8' },
+            { part: '肩', equipment: 'dumbbell', name: '上斜哑铃卧推', sets: '3×10' },
+            { part: '手臂', equipment: 'cable', name: '绳索下压', sets: '3×12' },
+          ],
+        },
+        {
+          id: 'rt-pull',
+          name: '拉日',
+          note: '背 / 二头',
+          exercises: [
+            { part: '背', equipment: 'bodyweight', name: '引体向上', sets: '4×6' },
+            { part: '背', equipment: 'barbell', name: '杠铃划船', sets: '3×10' },
+            { part: '手臂', equipment: 'dumbbell', name: '哑铃弯举', sets: '3×12' },
+          ],
+        },
+        {
+          id: 'rt-legs',
+          name: '腿日',
+          note: '股四 / 臀 / 腘绳',
+          exercises: [
+            { part: '腿', equipment: 'barbell', name: '深蹲', sets: '4×8' },
+            { part: '臀', equipment: 'barbell', name: '罗马尼亚硬拉', sets: '3×10' },
+            { part: '腿', equipment: 'machine', name: '腿弯举', sets: '3×12' },
+          ],
+        },
       ],
       sessions: [],
       plans: [],

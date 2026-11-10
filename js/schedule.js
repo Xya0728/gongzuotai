@@ -206,16 +206,16 @@ const Scheduler = {
 
     /* ---- 健身 ---- */
     const weekStart = weekStartKey(date);
-    const weekSessions = d.fitness.sessions.filter((s) => s.date >= weekStart && s.date <= date);
+    const weekPlans = d.fitness.plans.filter((p) => p.date >= weekStart && p.date <= addDays(weekStart, 6));
     const gymTarget = Math.max(0, Number(prefs.gymPerWeek) || 0);
-    const deficit = Math.max(0, gymTarget - weekSessions.length);
+    const deficit = Math.max(0, gymTarget - weekPlans.length);
     const alreadyPlanned = d.fitness.plans.some((p) => p.date === date);
     const routines = d.fitness.routines || [];
     if (deficit > 0 && routines.length && !alreadyPlanned) {
       const ranked = routines
         .map((r) => {
-          const last = d.fitness.sessions
-            .filter((s) => s.name === r.name)
+          const last = d.fitness.plans
+            .filter((p) => p.routineId === r.id)
             .sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
           return { routine: r, last: last, gap: last ? diffDays(last.date, date) : 999 };
         })
@@ -229,8 +229,8 @@ const Scheduler = {
         windows: [['17:00', '21:00'], ['07:00', '09:00']],
         score: 42 + deficit * 8 + (pick.gap >= 7 ? 12 : pick.gap >= 3 ? 6 : 0),
         reason:
-          '本周已练 ' + weekSessions.length + ' 次，目标 ' + gymTarget + ' 次' +
-          (pick.last ? '；上次「' + pick.routine.name + '」是 ' + pick.gap + ' 天前' : '；最近还没练过「' + pick.routine.name + '」'),
+          '本周已安排 ' + weekPlans.length + ' 次，目标 ' + gymTarget + ' 次' +
+          (pick.last ? '；上次「' + pick.routine.name + '」是 ' + pick.gap + ' 天前' : '；最近还没排过「' + pick.routine.name + '」'),
       });
     }
 
@@ -307,7 +307,7 @@ const Scheduler = {
     if (pendingOrders.length) factors.push(pendingOrders.length + ' 个待发货订单');
     if (lowStock.length) factors.push(lowStock.length + ' 项库存预警');
     if (activeGoals.length) factors.push(activeGoals.length + ' 个学习目标');
-    if (gymTarget) factors.push('本周训练 ' + weekSessions.length + '/' + gymTarget + ' 次');
+    if (gymTarget) factors.push('本周训练安排 ' + weekPlans.length + '/' + gymTarget + ' 次');
     if (leftover.length) factors.push(leftover.length + ' 件遗留计划');
 
     const summary = chosen.length

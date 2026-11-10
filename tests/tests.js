@@ -142,45 +142,41 @@ function daysInMonth(mk) {
   return new Date(parts[0], parts[1], 0).getDate();
 }
 
-test('P2 健身日历显示部位、动作与次数', async () => {
+test('P2 健身周视图展示每天的推日/拉日与动作', async () => {
   resetData();
   const t = todayKey();
-  Store.data.fitness.sessions = [
-    {
-      id: 'ts1',
-      date: t,
-      name: '推日',
-      exercises: [
-        { part: '胸', name: '卧推', sets: [{ w: 60, r: 8 }, { w: 60, r: 8 }, { w: 55, r: 10 }] },
-        { part: '手臂', name: '绳索下压', sets: [{ w: 20, r: 12 }] },
-      ],
-    },
+  Store.data.fitness.plans = [
+    { id: 'fp1', date: t, routineId: 'rt-push', name: '推日', note: '胸 / 肩 / 三头', exercises: [] },
   ];
   Store.save();
-  Pages.fitness.month = monthKeyOf(t);
+  Pages.fitness.weekStart = weekStartKey(t);
   Pages.fitness.selected = t;
   showPage('fitness');
-  eq(document.querySelectorAll('.cal-cell[data-date]').length, daysInMonth(monthKeyOf(t)), '日历格子数');
-  const todayCell = document.querySelector('.cal-cell[data-date="' + t + '"]');
+  eq(document.querySelectorAll('.week-day[data-date]').length, 7, '一周七天');
+  const todayCell = document.querySelector('.week-day[data-date="' + t + '"]');
   assert(todayCell, '找不到今天的格子');
-  includes(todayCell.textContent, '胸', '今日格子应显示部位');
-  includes(todayCell.textContent, '手臂', '今日格子应显示部位');
-  includes(mainText(), '卧推', '详情应显示动作');
-  includes(mainText(), '60kg×8', '详情应显示重量和次数');
-  includes(mainText(), '绳索下压', '详情应显示全部动作');
+  includes(todayCell.textContent, '推日', '格子里应显示模板名');
+  includes(todayCell.textContent, '卧推', '格子里应显示动作');
+  assert(todayCell.textContent.indexOf('计划 1') === -1, '不应再显示「计划 1」');
+  includes(mainText(), '卧推', '当天详情应显示动作');
+  includes(mainText(), '4×8', '详情应显示组次');
+  includes(mainText(), '胸', '详情应显示部位');
 });
 
-test('P2 健身日历可以切换日期', async () => {
+test('P2 健身周视图可以切换上/下一周', async () => {
   resetData();
   const t = todayKey();
-  Pages.fitness.month = monthKeyOf(t);
+  const ws = weekStartKey(t);
+  Pages.fitness.weekStart = ws;
   Pages.fitness.selected = t;
   showPage('fitness');
-  const other = Pages.fitness.month + '-28';
-  document.querySelector('.cal-cell[data-date="' + other + '"]').click();
+  document.querySelector('[data-act="nextWeek"]').click();
   await tick(150);
-  eq(Pages.fitness.selected, other, '选中的日期');
-  includes(mainText(), '这一天还没有训练记录', '空日期提示');
+  eq(Pages.fitness.weekStart, addDays(ws, 7), '下一周');
+  includes(mainText(), fmtShortDate(addDays(ws, 7)), '标题应显示新一周');
+  document.querySelector('[data-act="thisWeek"]').click();
+  await tick(150);
+  eq(Pages.fitness.weekStart, ws, '回到本周');
 });
 
 test('P2 饮食日历显示每日三餐与饮水', async () => {
@@ -231,26 +227,17 @@ test('P3 器械与食物插画库可用', async () => {
 test('P3 健身详情显示器械插画', async () => {
   resetData();
   const t = todayKey();
-  Store.data.fitness.sessions = [
-    {
-      id: 'fs-art',
-      date: t,
-      name: '推日',
-      exercises: [
-        { part: '胸', equipment: 'barbell', name: '卧推', sets: [{ w: 60, r: 8 }] },
-        { part: '肩', equipment: 'dumbbell', name: '哑铃肩推', sets: [{ w: 16, r: 10 }] },
-      ],
-    },
+  Store.data.fitness.plans = [
+    { id: 'fs-art', date: t, routineId: 'rt-push', name: '推日', note: '胸 / 肩 / 三头', exercises: [] },
   ];
   Store.save();
-  Pages.fitness.month = monthKeyOf(t);
+  Pages.fitness.weekStart = weekStartKey(t);
   Pages.fitness.selected = t;
   showPage('fitness');
-  const icons = document.querySelectorAll('.ex-line .ex-ico svg');
-  eq(icons.length, 2, '每个动作一个器械插画');
+  const icons = document.querySelectorAll('.day-plan .ex-line .ex-ico svg');
+  eq(icons.length, 3, '每个动作一个器械插画');
   eq(icons[0].getAttribute('aria-label'), '杠铃', '第一个动作器械');
   eq(icons[1].getAttribute('aria-label'), '哑铃', '第二个动作器械');
-  includes(mainText(), '杠铃', '本月器械使用应显示杠铃');
 });
 
 test('P3 饮食显示食物插画与图库卡片', async () => {
@@ -412,16 +399,16 @@ test('P9 学习分类可以在新增目标时扩展', async () => {
 
 /* ---------------- P10 拖拽训练计划 ---------------- */
 
-test('P10 训练模板可以拖进日历', async () => {
+test('P10 训练模板可以拖进周计划，显示推日而不是计划1', async () => {
   resetData();
   const t = todayKey();
-  Pages.fitness.month = monthKeyOf(t);
+  Pages.fitness.weekStart = weekStartKey(t);
   Pages.fitness.selected = t;
   showPage('fitness');
   const routine = document.querySelector('.routine-item');
-  const cell = document.querySelector('.cal-cell[data-date="' + t + '"]');
+  const cell = document.querySelector('.week-day[data-date="' + t + '"]');
   assert(routine, '应有训练模板');
-  assert(cell, '应有日历格子');
+  assert(cell, '应有周计划格子');
   const dt = new DataTransfer();
   routine.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }));
   cell.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
@@ -430,18 +417,20 @@ test('P10 训练模板可以拖进日历', async () => {
   const plans = Store.data.fitness.plans || [];
   eq(plans.length, 1, '应生成一条训练计划');
   eq(plans[0].date, t, '计划日期');
-  assert(document.querySelector('.plan-row'), '日历详情应显示计划');
-  includes(document.querySelector('.cal-cell[data-date="' + t + '"]').textContent, '计划', '日历格子应有计划标记');
+  eq(plans[0].name, '推日', '计划名称');
+  includes(document.querySelector('.week-day[data-date="' + t + '"]').textContent, '推日', '格子里应显示推日');
+  assert(mainText().indexOf('计划 1') === -1, '不应出现计划 1');
+  assert(document.querySelector('.day-plan'), '当天详情应显示训练内容');
 });
 
 test('P10 同一天不会重复安排同一模板', async () => {
   resetData();
   const t = todayKey();
-  Pages.fitness.month = monthKeyOf(t);
+  Pages.fitness.weekStart = weekStartKey(t);
   Pages.fitness.selected = t;
   showPage('fitness');
   const routine = document.querySelector('.routine-item');
-  const cell = document.querySelector('.cal-cell[data-date="' + t + '"]');
+  const cell = document.querySelector('.week-day[data-date="' + t + '"]');
   for (let i = 0; i < 2; i++) {
     const dt = new DataTransfer();
     routine.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }));
@@ -449,6 +438,31 @@ test('P10 同一天不会重复安排同一模板', async () => {
     await tick(200);
   }
   eq((Store.data.fitness.plans || []).length, 1, '不应重复');
+});
+
+test('P10 新建训练模板可以添加动作', async () => {
+  resetData();
+  Pages.fitness.weekStart = weekStartKey(todayKey());
+  Pages.fitness.selected = todayKey();
+  showPage('fitness');
+  document.querySelector('[data-act="addRoutine"]').click();
+  await tick(150);
+  const form = document.querySelector('#modal-root form');
+  form.elements.name.value = '连背+三头';
+  document.querySelector('#add-routine-ex').click();
+  const rows = form.querySelectorAll('[data-rex]');
+  const row = rows[rows.length - 1];
+  row.querySelector('[data-rex-part]').value = '背';
+  row.querySelector('[data-rex-name]').value = '高位下拉';
+  row.querySelector('[data-rex-sets]').value = '4×10';
+  form.requestSubmit();
+  await tick(250);
+  const routine = Store.data.fitness.routines.filter((r) => r.name === '连背+三头')[0];
+  assert(routine, '应保存新模板');
+  eq(routine.exercises.length, 1, '动作数量');
+  eq(routine.exercises[0].name, '高位下拉', '动作名称');
+  eq(routine.exercises[0].sets, '4×10', '组次');
+  includes(mainText(), '连背+三头', '模板列表应显示新模板');
 });
 
 /* ---------------- P11 拖拽食物加餐 ---------------- */
