@@ -1,7 +1,7 @@
 'use strict';
 
 /* =========================================================
-   学习计划
+   学习计划 · 项目与截止日期
    ========================================================= */
 
 function ensureStudyCategory(name) {
@@ -23,120 +23,89 @@ function studyCover(goal) {
   return '<span class="goal-cover placeholder">' + esc(text) + '</span>';
 }
 
+function studyDeadlineChip(goal, today) {
+  if (!goal.deadline) return '<span class="chip gray">未设截止</span>';
+  const days = diffDays(today, goal.deadline);
+  if (days < 0) return '<span class="chip red">已过期 ' + -days + ' 天</span>';
+  if (days === 0) return '<span class="chip red">今天截止</span>';
+  if (days <= 7) return '<span class="chip amber">' + days + ' 天后截止</span>';
+  return '<span class="chip gray">截止 ' + esc(fmtShortDate(goal.deadline)) + '</span>';
+}
+
 Pages.study = {
   render(el) {
     const d = Store.data;
     const t = todayKey();
-    const weekStart = weekStartKey(t);
+    const mk = monthKeyOf(t);
+    const goals = d.study.goals.slice();
+    const timed = goals
+      .filter((g) => g.deadline)
+      .sort((a, b) => String(a.deadline).localeCompare(String(b.deadline)));
+    const overdue = timed.filter((g) => g.deadline < t);
+    const coming = timed.filter((g) => g.deadline >= t);
+    const next = coming[0] || null;
+    const monthDue = timed.filter((g) => g.deadline.indexOf(mk) === 0);
+    const categories = Array.isArray(d.study.categories) ? d.study.categories : [];
 
-    const todayMinutes = sumBy(d.study.logs.filter((l) => l.date === t), (l) => l.minutes);
-    const weekMinutes = sumBy(d.study.logs.filter((l) => l.date >= weekStart && l.date <= t), (l) => l.minutes);
-    const streak = studyStreak(d.study.logs);
-    const activeGoals = d.study.goals.filter((g) => g.status === 'active');
-    const totalMinutes = sumBy(d.study.logs, (l) => l.minutes);
-
-    const days = [];
-    for (let i = 13; i >= 0; i--) {
-      const key = addDays(t, -i);
-      days.push({
-        label: String(parseDate(key).getDate()),
-        title: fmtDateCN(key, true),
-        value: sumBy(d.study.logs.filter((l) => l.date === key), (l) => l.minutes),
-      });
-    }
-    const hasStudy = days.some((x) => x.value > 0);
-
-    const goalProgress = {};
-    d.study.logs.forEach((l) => {
-      if (!l.goalId) return;
-      goalProgress[l.goalId] = (goalProgress[l.goalId] || 0) + (Number(l.minutes) || 0);
+    const sorted = goals.slice().sort((a, b) => {
+      if (a.deadline && b.deadline) return String(a.deadline).localeCompare(String(b.deadline));
+      if (a.deadline) return -1;
+      if (b.deadline) return 1;
+      return (a.createdAt || 0) - (b.createdAt || 0);
     });
-
-    const recentLogs = d.study.logs.slice().sort(byDateDesc).slice(0, 10);
 
     el.innerHTML =
       pageHead(
         '学习计划',
-        '设定目标、每天打卡，看得到累积的时长和连续天数',
-        '<button class="btn" data-act="addGoal">' + icon('target') + '新增目标</button>' +
-          '<button class="btn primary" data-act="addLog">' + icon('plus') + '学习打卡</button>'
+        '把想学的书、乐器、课程列成项目，定好截止日，按节奏推进就好',
+        '<button class="btn primary" data-act="addGoal">' + icon('plus') + '新增项目</button>'
       ) +
 
       '<div class="grid grid-4">' +
-      statCard({ label: '今日学习', dot: true, value: todayMinutes ? minutesText(todayMinutes) : '0 <small>分钟</small>', sub: '本周 ' + hoursText(weekMinutes) }) +
-      statCard({ label: '连续打卡', dot: true, value: streak + '<small>天</small>', sub: streak ? '保持住，别断' : '今天打个卡开始' }) +
-      statCard({ label: '累计学习', dot: true, value: hoursText(totalMinutes), sub: '共 ' + d.study.logs.length + ' 次打卡' }) +
-      statCard({ label: '进行中目标', dot: true, value: activeGoals.length + '<small>个</small>', sub: '目标共 ' + d.study.goals.length + ' 个' }) +
+      statCard({ label: '学习项目', dot: true, value: goals.length + '<small>个</small>', sub: '分在 ' + categories.length + ' 个分类里' }) +
+      statCard({
+        label: '最近截止',
+        dot: true,
+        value: next ? '<small>剩</small>' + diffDays(t, next.deadline) + '<small>天</small>' : '—',
+        sub: next ? esc(next.title) + ' · ' + fmtDateCN(next.deadline) : '还没有设截止日期',
+      }) +
+      statCard({ label: '本月截止', dot: true, value: monthDue.length + '<small>个</small>', sub: monthDue.length ? '本月要推进的项目' : '本月没有截止的项目' }) +
+      statCard({
+        label: '已过期',
+        dot: true,
+        value: overdue.length + '<small>个</small>',
+        sub: overdue.length ? '排个时间收尾，或改个截止日' : '没有过期的项目',
+      }) +
       '</div>' +
 
-      '<section class="card mt-16"><div class="card-head"><div><h2>学习目标</h2>' +
-      '<p class="card-sub">' + (d.study.goals.length ? '按目标累计学习时长' : '先设一个目标，打卡会更有方向') + '</p></div></div>' +
-      (d.study.goals.length
+      '<section class="card mt-16"><div class="card-head"><div><h2>学习项目</h2>' +
+      '<p class="card-sub">' +
+      (sorted.length ? '按截止日期排序，点项目可以改封面、分类和日期' : '先加一个想学的东西') +
+      '</p></div></div>' +
+      (sorted.length
         ? '<div class="list">' +
-          d.study.goals
-            .map((g) => {
-              const learned = goalProgress[g.id] || 0;
-              const targetMin = (Number(g.targetHours) || 0) * 60;
-              const p = targetMin ? pct(learned, targetMin) : 0;
-              const overdue = g.deadline && g.deadline < t && g.status === 'active';
-              return (
+          sorted
+            .map(
+              (g) =>
                 '<div class="item" style="align-items:flex-start">' +
                 studyCover(g) +
-                '<div class="item-body"><div class="item-title">' + esc(g.title) + ' ' +
-                chipsFor(GOAL_STATUS, g.status) +
-                (g.category ? ' <span class="chip violet">' + esc(g.category) + '</span>' : '') +
-                (g.subject ? ' <span class="chip gray">' + esc(g.subject) + '</span>' : '') + '</div>' +
-                '<div class="item-meta">已学 ' + hoursText(learned) +
-                (targetMin ? ' / 目标 ' + g.targetHours + ' 小时' : '') +
-                (g.deadline ? ' · 截止 ' + esc(fmtDateCN(g.deadline)) + (overdue ? '（已过期）' : '') : '') +
+                '<div class="item-body"><div class="item-title">' + esc(g.title) + '</div>' +
+                '<div class="item-meta">' +
+                (g.category ? '<span class="chip violet">' + esc(g.category) + '</span>' : '') +
+                (g.subject ? '<span class="chip gray">' + esc(g.subject) + '</span>' : '') +
+                studyDeadlineChip(g, t) +
                 '</div>' +
-                (targetMin
-                  ? '<div class="progress-row mt-8"><div class="progress"><div class="progress-fill" style="width:' + p + '%"></div></div>' +
-                    '<span class="progress-pct">' + p + '%</span></div>'
-                  : '') +
                 (g.note ? '<div class="tiny muted mt-8">' + esc(g.note) + '</div>' : '') +
                 '</div>' +
-                '<button class="btn sm" data-act="log" data-id="' + g.id + '">打卡</button>' +
                 '<div class="item-actions" style="opacity:1">' +
                 '<button class="icon-btn" data-act="editGoal" data-id="' + g.id + '" aria-label="编辑">' + icon('edit') + '</button>' +
                 '<button class="icon-btn danger" data-act="delGoal" data-id="' + g.id + '" aria-label="删除">' + icon('trash') + '</button>' +
                 '</div></div>'
-              );
-            })
+            )
             .join('') +
           '</div>'
-        : emptyState('还没有学习目标', '比如：三个月读完一本英文原版书', '<button class="btn sm" data-act="addGoal">+ 新增目标</button>')) +
-      '</section>' +
-
-      '<div class="grid grid-2 mt-16" style="align-items:start">' +
-      '<section class="card"><div class="card-head"><div><h2>近 14 天学习时长</h2>' +
-      '<p class="card-sub">每天累计分钟数</p></div></div>' +
-      (hasStudy
-        ? barChart(days, { height: 140, format: (v) => (v ? Math.round(v) : '') })
-        : emptyState('最近两周还没有打卡', '记录一次学习，这里就会出现柱状图')) +
-      '</section>' +
-
-      '<section class="card"><div class="card-head"><div><h2>最近打卡</h2>' +
-      '<p class="card-sub">共 ' + d.study.logs.length + ' 次记录</p></div></div>' +
-      (recentLogs.length
-        ? '<div class="list">' +
-          recentLogs
-            .map((l) => {
-              const goal = findById(d.study.goals, l.goalId);
-              return (
-                '<div class="item"><div class="item-body"><div class="item-title">' +
-                esc(goal ? goal.title : '未归类学习') + ' <span class="chip violet">' + minutesText(l.minutes) + '</span></div>' +
-                '<div class="item-meta">' + esc(fmtDateCN(l.date, true)) + (l.content ? ' · ' + esc(l.content) : '') + '</div>' +
-                '</div>' +
-                '<div class="item-actions"><button class="icon-btn danger" data-act="delLog" data-id="' + l.id + '" aria-label="删除">' +
-                icon('trash') + '</button></div></div>'
-              );
-            })
-            .join('') +
-          '</div>'
-        : emptyState('还没有打卡记录', '每天学完记一笔，连续天数会累积')) +
-      '</section>' +
-      '</div>';
+        : emptyState('还没有学习项目', '比如：三个月读完一本英文原版书', '<button class="btn sm" data-act="addGoal">+ 新增项目</button>')) +
+      '</section>';
 
     bind(el, {
       addGoal() {
@@ -152,32 +121,14 @@ Pages.study = {
           body: '<img class="goal-image-full" src="' + esc(goal.image) + '" alt="' + esc(goal.title) + '">',
         });
       },
-      addLog() {
-        openStudyLogModal(null, '', todayKey());
-      },
-      log(node) {
-        openStudyLogModal(null, node.dataset.id, todayKey());
-      },
       editGoal(node) {
         const goal = findById(Store.data.study.goals, node.dataset.id);
         if (goal) openGoalModal(goal);
       },
       delGoal(node) {
         const id = node.dataset.id;
-        const count = Store.data.study.logs.filter((l) => l.goalId === id).length;
-        confirmDelete(count ? '这个目标下有 ' + count + ' 条打卡记录，删除后记录会保留但变成「未归类」。' : '删除后无法恢复。', () => {
-          removeById(Store.data.study.goals, id);
-          Store.data.study.logs.forEach((l) => {
-            if (l.goalId === id) l.goalId = '';
-          });
-          Store.save();
-          App.refresh();
-        });
-      },
-      delLog(node) {
-        const id = node.dataset.id;
         confirmDelete('删除后无法恢复。', () => {
-          removeById(Store.data.study.logs, id);
+          removeById(Store.data.study.goals, id);
           Store.save();
           App.refresh();
         });
@@ -191,10 +142,11 @@ Pages.study = {
 function openGoalModal(goal) {
   const editing = !!goal;
   openModal({
-    title: editing ? '编辑学习目标' : '新增学习目标',
+    title: editing ? '编辑学习项目' : '新增学习项目',
+    subtitle: '分类可以选书籍 / 乐器 / 课程，也可以自己输入',
     size: 'small',
     body:
-      fInput('title', '目标', { value: editing ? goal.title : '', placeholder: '例如：学完《经济学原理》', required: true }) +
+      fInput('title', '项目', { value: editing ? goal.title : '', placeholder: '例如：学完《经济学原理》', required: true, maxlength: 60 }) +
       fInput('category', '分类', {
         value: editing ? goal.category || '' : '',
         placeholder: '书籍 / 乐器 / 课程，也可以直接输入新分类',
@@ -217,12 +169,8 @@ function openGoalModal(goal) {
       '<input type="hidden" name="image" id="goal-image-data" value="' + (editing ? esc(goal.image || '') : '') + '">' +
       '</div>' +
       fRow(
-        fInput('subject', '主题 / 科目', { value: editing ? goal.subject : '', placeholder: '例如：英语、编程' }),
-        fNumber('targetHours', '目标小时数', { value: editing ? goal.targetHours : '', min: 0, step: '0.5', placeholder: '选填' })
-      ) +
-      fRow(
-        fDate('deadline', '截止日期', editing ? goal.deadline : ''),
-        fSelect('status', '状态', GOAL_STATUS, editing ? goal.status : 'active')
+        fInput('subject', '主题 / 科目', { value: editing ? goal.subject : '', placeholder: '例如：英语、编程', maxlength: 30 }),
+        fDate('deadline', '截止日期', editing ? goal.deadline : '')
       ) +
       fTextarea('note', '备注', editing ? goal.note : '', { rows: 2, placeholder: '为什么想学、怎么学，可不填' }),
     onMount(form) {
@@ -254,7 +202,7 @@ function openGoalModal(goal) {
     onSubmit(data) {
       const title = String(data.title || '').trim();
       if (!title) {
-        toast('请填写目标', 'err');
+        toast('请填写项目', 'err');
         return false;
       }
       const category = ensureStudyCategory(data.category);
@@ -263,63 +211,18 @@ function openGoalModal(goal) {
         category: category,
         image: String(data.image || ''),
         subject: String(data.subject || '').trim(),
-        targetHours: Number(data.targetHours) || 0,
         deadline: data.deadline || '',
-        status: data.status || 'active',
         note: String(data.note || '').trim(),
       };
       if (editing) {
         Object.assign(goal, payload);
+        delete goal.targetHours;
+        delete goal.status;
       } else {
         Store.data.study.goals.push(Object.assign({ id: uid(), createdAt: Date.now() }, payload));
       }
       Store.save();
-      toast(editing ? '目标已更新' : '目标已添加');
-      App.refresh();
-    },
-  });
-}
-
-function openStudyLogModal(log, presetGoalId, presetDate) {
-  const editing = !!log;
-  const goals = Store.data.study.goals;
-  const goalOptions = [{ value: '', label: '未归类' }].concat(goals.map((g) => ({ value: g.id, label: g.title })));
-  const goalId = editing ? log.goalId || '' : presetGoalId || '';
-
-  openModal({
-    title: editing ? '编辑打卡' : '学习打卡',
-    size: 'small',
-    body:
-      fRow(fDate('date', '日期', editing ? log.date : presetDate || todayKey()), fNumber('minutes', '学习时长（分钟）', {
-        value: editing ? log.minutes : '',
-        min: 1,
-        required: true,
-        placeholder: '例如：45',
-      })) +
-      fSelect('goalId', '对应目标', goalOptions, goalId) +
-      fTextarea('content', '学了什么', editing ? log.content : '', {
-        rows: 3,
-        placeholder: '学了哪一章、做了什么练习……',
-      }),
-    onSubmit(data) {
-      const minutes = Number(data.minutes);
-      if (!isFinite(minutes) || minutes <= 0) {
-        toast('请填写学习时长', 'err');
-        return false;
-      }
-      const payload = {
-        date: data.date || todayKey(),
-        minutes: Math.round(minutes),
-        goalId: data.goalId || '',
-        content: String(data.content || '').trim(),
-      };
-      if (editing) {
-        Object.assign(log, payload);
-      } else {
-        Store.data.study.logs.push(Object.assign({ id: uid(), createdAt: Date.now() }, payload));
-      }
-      Store.save();
-      toast('已记下 ' + minutesText(minutes));
+      toast(editing ? '项目已更新' : '项目已添加');
       App.refresh();
     },
   });

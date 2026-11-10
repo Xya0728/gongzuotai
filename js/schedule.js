@@ -164,22 +164,11 @@ const Scheduler = {
     }
 
     /* ---- 学习 ---- */
-    const activeGoals = d.study.goals.filter((g) => g.status === 'active');
-    const learnedByGoal = {};
-    d.study.logs.forEach((l) => {
-      if (l.goalId) learnedByGoal[l.goalId] = (learnedByGoal[l.goalId] || 0) + (Number(l.minutes) || 0);
-    });
+    const activeGoals = d.study.goals;
     activeGoals.forEach((g) => {
-      const target = (Number(g.targetHours) || 0) * 60;
-      const learned = learnedByGoal[g.id] || 0;
-      const left = target ? Math.max(0, target - learned) : 0;
       const daysLeft = g.deadline ? diffDays(date, g.deadline) : null;
-      let score = 38;
-      let reason = g.category ? g.category + '目标' : '学习目标';
-      if (target) {
-        reason += '，已学 ' + hoursText(learned) + ' / ' + g.targetHours + ' 小时';
-        score += Math.min(20, Math.round(left / 60) * 2);
-      }
+      let score = 34;
+      let reason = g.category ? g.category + '项目' : '学习项目';
       if (daysLeft !== null) {
         if (daysLeft < 0) {
           reason += '，已超期 ' + -daysLeft + ' 天';
@@ -191,8 +180,9 @@ const Scheduler = {
           reason += '，' + daysLeft + ' 天后截止';
           score += 4;
         }
+      } else {
+        reason += '，没有截止日，也可以推进一点';
       }
-      if (!target && daysLeft === null) reason += '，可以推进一点';
       candidates.push({
         module: 'study',
         title: '学习 · ' + g.title,

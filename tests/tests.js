@@ -928,6 +928,52 @@ test('P16 记一笔仍然可用', async () => {
   includes(mainText(), '餐饮', '明细里应出现');
 });
 
+/* ---------------- P17 学习去掉打卡 ---------------- */
+
+test('P17 学习页不再有打卡与学习时长', async () => {
+  resetData();
+  const t = todayKey();
+  Store.data.study.goals = [
+    { id: 'g17-1', title: '钢琴基础', category: '乐器', deadline: addDays(t, 3), note: '' },
+    { id: 'g17-2', title: '读完一本书', category: '书籍', deadline: addDays(t, -2), note: '' },
+  ];
+  Store.data.study.logs = [{ id: 'l17-1', date: t, minutes: 600, goalId: 'g17-1' }];
+  Store.save();
+  showPage('study');
+  assert(mainText().indexOf('打卡') === -1, '不应出现打卡');
+  assert(mainText().indexOf('学习时长') === -1, '不应出现学习时长');
+  assert(mainText().indexOf('累计学习') === -1, '不应出现累计学习');
+  assert(mainText().indexOf('10 小时') === -1, '不应显示历史学习时长');
+  eq(document.querySelectorAll('[data-act="addLog"]').length, 0, '不应有打卡入口');
+  includes(mainText(), '学习项目', '项目标题');
+  includes(mainText(), '钢琴基础', '项目名');
+  includes(mainText(), '3 天后截止', '截止提示');
+  includes(mainText(), '已过期 2 天', '过期提示');
+});
+
+test('P17 新增项目只填分类和截止日', async () => {
+  resetData();
+  const t = todayKey();
+  Pages.study && (Pages.study.logs = []);
+  showPage('study');
+  document.querySelector('[data-act="addGoal"]').click();
+  await tick(150);
+  const form = document.querySelector('#modal-root form');
+  assert(!form.elements.targetHours, '不应再有目标小时数');
+  assert(!form.elements.status, '不应再有完成状态');
+  form.elements.title.value = '练习水彩';
+  form.elements.category.value = '绘画';
+  form.elements.deadline.value = addDays(t, 5);
+  form.requestSubmit();
+  await tick(250);
+  const goal = Store.data.study.goals.filter((g) => g.title === '练习水彩')[0];
+  assert(goal, '应保存项目');
+  eq(goal.category, '绘画', '分类');
+  eq(goal.deadline, addDays(t, 5), '截止日');
+  assert(!goal.targetHours, '不应写入目标时长');
+  includes(mainText(), '5 天后截止', '页面显示截止');
+});
+
 /* ---------------- 运行 ---------------- */
 
 (async function runAll() {

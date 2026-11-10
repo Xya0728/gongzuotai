@@ -82,12 +82,6 @@ const WORK_STAGES = [
   { value: 'dropped', label: '放弃' },
 ];
 
-const GOAL_STATUS = [
-  { value: 'active', label: '进行中', tone: 'blue' },
-  { value: 'done', label: '已完成', tone: 'green' },
-  { value: 'paused', label: '暂停', tone: 'gray' },
-];
-
 const MEALS = [
   { value: 'breakfast', label: '早餐' },
   { value: 'lunch', label: '午餐' },
@@ -350,22 +344,6 @@ function shopOf(id) {
 function shopName(id) {
   const s = shopOf(id);
   return s ? s.name : '未指定店铺';
-}
-
-/** 连续打卡天数：今天没打卡时从昨天往前数 */
-function studyStreak(logs) {
-  const days = {};
-  (logs || []).forEach((l) => {
-    if (l.date) days[l.date] = true;
-  });
-  let cursor = todayKey();
-  if (!days[cursor]) cursor = addDays(cursor, -1);
-  let count = 0;
-  while (days[cursor]) {
-    count++;
-    cursor = addDays(cursor, -1);
-  }
-  return count;
 }
 
 /* =========================================================
