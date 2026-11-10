@@ -62,6 +62,7 @@ const ICONS = {
   sun: '<circle cx="12" cy="12" r="4.2"/><path d="M12 3.2v2.1M12 18.7v2.1M3.2 12h2.1M18.7 12h2.1M5.8 5.8l1.5 1.5M16.7 16.7l1.5 1.5M18.2 5.8l-1.5 1.5M7.3 16.7l-1.5 1.5"/>',
   cloud: '<path d="M7 18.5h10a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 8 9.7 4.4 4.4 0 0 0 7 18.5z"/>',
   rain: '<path d="M7 15.5h10a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 8 6.7 4.4 4.4 0 0 0 7 15.5z"/><path d="M8.5 18.5 7.8 21M12 18.5 11.3 21M15.5 18.5l-.7 2.5"/>',
+  coffee: '<path d="M6 8h12v6a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5z"/><path d="M18 9h1.4a2.6 2.6 0 0 1 0 5.2H18M4 21h16M9 3.5v2M13 3.5v2"/>',
 };
 
 const PRIORITIES = [
@@ -409,6 +410,7 @@ function defaultData() {
     },
     diet: {
       meals: [],
+      coffee: {},
       foods: [
         { id: 'fd-egg', name: '鸡蛋', portion: '1 个', calories: 70, category: '蛋奶' },
         { id: 'fd-milk', name: '牛奶', portion: '1 杯', calories: 120, category: '蛋奶' },

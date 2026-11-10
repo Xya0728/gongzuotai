@@ -6,10 +6,90 @@
 
 const MEAL_SHARE = { breakfast: 0.25, lunch: 0.35, dinner: 0.3, snack: 0.1 };
 
+/* 常见食物热量基准（每 100g / 每个），只求大概，够用就行 */
+const FOOD_KCAL_TABLE = [
+  { keys: ['鸡腿'], per100: 210, unitKcal: 230, gramsPerUnit: 110 },
+  { keys: ['鸡胸'], per100: 133, gramsPerUnit: 120 },
+  { keys: ['鸡蛋', '蛋'], per100: 144, unitKcal: 70, gramsPerUnit: 50 },
+  { keys: ['米饭'], per100: 116, gramsPerUnit: 200 },
+  { keys: ['粥'], per100: 46, gramsPerUnit: 300 },
+  { keys: ['面条', '面', '粉'], per100: 110, gramsPerUnit: 250 },
+  { keys: ['燕麦'], per100: 380, gramsPerUnit: 50 },
+  { keys: ['牛奶'], per100: 60, unitKcal: 120, gramsPerUnit: 200 },
+  { keys: ['酸奶'], per100: 70, unitKcal: 100, gramsPerUnit: 150 },
+  { keys: ['奶茶'], per100: 70, unitKcal: 350, gramsPerUnit: 500 },
+  { keys: ['拿铁'], per100: 50, unitKcal: 180, gramsPerUnit: 350 },
+  { keys: ['咖啡', '美式'], per100: 2, unitKcal: 5, gramsPerUnit: 250 },
+  { keys: ['可乐'], per100: 42, unitKcal: 140, gramsPerUnit: 330 },
+  { keys: ['橙汁', '果汁', '汁'], per100: 45, unitKcal: 110, gramsPerUnit: 250 },
+  { keys: ['香蕉'], per100: 93, unitKcal: 90, gramsPerUnit: 100 },
+  { keys: ['苹果'], per100: 52, unitKcal: 80, gramsPerUnit: 160 },
+  { keys: ['西兰花'], per100: 34, gramsPerUnit: 100 },
+  { keys: ['沙拉', '蔬菜', '菜'], per100: 30, gramsPerUnit: 150 },
+  { keys: ['牛肉'], per100: 125, gramsPerUnit: 150 },
+  { keys: ['猪肉'], per100: 143, gramsPerUnit: 150 },
+  { keys: ['三文鱼', '鱼'], per100: 140, gramsPerUnit: 150 },
+  { keys: ['面包'], per100: 250, unitKcal: 120, gramsPerUnit: 40 },
+];
+
+function parseFoodGrams(text) {
+  const m = /(\d+(?:\.\d+)?)\s*(?:g|克)/i.exec(String(text || ''));
+  return m ? Number(m[1]) : 0;
+}
+
+function parseFoodQty(text) {
+  const unit = /(\d+(?:\.\d+)?)\s*(?:个|只|根|片|杯|碗|罐|份|块|勺)/.exec(String(text || ''));
+  if (unit) return Number(unit[1]);
+  const any = /(\d+(?:\.\d+)?)/.exec(String(text || ''));
+  return any ? Number(any[1]) : 1;
+}
+
+function detailKcalFactor(detail) {
+  const d = String(detail || '');
+  let f = 1;
+  if (d.indexOf('去皮') >= 0) f *= 0.72;
+  if (d.indexOf('带皮') >= 0) f *= 1.12;
+  if (d.indexOf('无糖') >= 0) f *= 0.6;
+  else if (d.indexOf('少糖') >= 0) f *= 0.8;
+  else if (d.indexOf('全糖') >= 0) f *= 1.1;
+  if (d.indexOf('水煮') >= 0) f *= 0.9;
+  else if (d.indexOf('蒸') >= 0) f *= 0.92;
+  else if (d.indexOf('煎') >= 0) f *= 1.1;
+  else if (d.indexOf('炸') >= 0) f *= 1.3;
+  else if (d.indexOf('烤') >= 0) f *= 1.05;
+  if (d.indexOf('大份') >= 0) f *= 1.3;
+  if (d.indexOf('小份') >= 0) f *= 0.7;
+  return f;
+}
+
+/* 粗略估算：食物基准 × 分量 × 做法系数 */
+function estimateFoodCalories(name, portion, detail) {
+  const text = String(name || '');
+  let entry = null;
+  for (const row of FOOD_KCAL_TABLE) {
+    if (row.keys.some((k) => text.indexOf(k) >= 0)) {
+      entry = row;
+      break;
+    }
+  }
+  if (!entry) entry = { per100: 80, gramsPerUnit: 150 };
+  const grams = parseFoodGrams(portion);
+  let kcal;
+  if (grams) {
+    kcal = (entry.per100 * grams) / 100;
+  } else {
+    const qty = parseFoodQty(portion);
+    if (entry.unitKcal) kcal = entry.unitKcal * qty;
+    else kcal = (entry.per100 * (entry.gramsPerUnit || 100) * qty) / 100;
+  }
+  return Math.max(0, Math.round(kcal * detailKcalFactor(detail)));
+}
+
 function dietItemKcal(item) {
   if (item.calories !== undefined && item.calories !== null && item.calories !== '') return Number(item.calories) || 0;
   const food = (Store.data.diet.foods || []).filter((f) => f.name === item.name)[0];
-  return food ? Number(food.calories) || 0 : 0;
+  if (food) return Number(food.calories) || 0;
+  return estimateFoodCalories(item.name, item.portion, item.detail);
 }
 
 function dietMealKcal(items) {
@@ -83,6 +163,8 @@ Pages.diet = {
     const ratio = target ? Math.min(100, Math.round((totalKcal / target) * 100)) : 0;
 
     const water = Number(d.diet.water[date]) || 0;
+    const coffeeCups = Number((d.diet.coffee || {})[date]) || 0;
+    const caffeine = coffeeCups * 80;
     const goal = Number(d.settings.waterGoal) || 2000;
     const cupMl = Number(d.settings.waterCup) || 250;
     const cups = Math.max(1, Math.ceil(goal / cupMl));
@@ -162,6 +244,7 @@ Pages.diet = {
                   (item) =>
                     '<span class="food-pill"><span class="food-ico">' + foodArt(item.name) + '</span>' +
                     esc(item.name) + (item.portion ? ' · ' + esc(item.portion) : '') +
+                    (item.detail ? ' · ' + esc(item.detail) : '') +
                     (dietItemKcal(item) ? ' <b class="pill-kcal">' + dietItemKcal(item) + ' kcal</b>' : '') +
                     '<button data-act="delFood" data-id="' + item.id + '" aria-label="删除">' + icon('x') + '</button></span>'
                 )
@@ -206,6 +289,21 @@ Pages.diet = {
       '<div class="flex gap-8 mt-12">' +
       '<button class="btn sm" data-act="waterMinus" style="flex:1">− ' + cupMl + ' ml</button>' +
       '<button class="btn primary sm" data-act="waterPlus" style="flex:1">+ ' + cupMl + ' ml</button>' +
+      '</div>' +
+      '</section>' +
+
+      '<section class="card coffee-card"><div class="card-head"><div><h2>咖啡</h2>' +
+      '<p class="card-sub">约 80 mg 咖啡因 / 杯</p></div>' +
+      '<span class="chip amber">' + coffeeCups + ' 杯</span></div>' +
+      '<div class="coffee-body">' +
+      '<div class="coffee-big"><span class="coffee-ico">' + icon('coffee') + '</span>' +
+      '<b>' + coffeeCups + '<small>杯</small></b></div>' +
+      '<div class="coffee-meta">今天约 <b>' + caffeine + '</b> mg 咖啡因' +
+      '<br><span class="tiny muted">建议不超过 2 杯</span></div>' +
+      '</div>' +
+      '<div class="flex gap-8 mt-12">' +
+      '<button class="btn sm" data-act="coffeeMinus" style="flex:1">− 1 杯</button>' +
+      '<button class="btn primary sm" data-act="coffeePlus" style="flex:1">+ 1 杯</button>' +
       '</div>' +
       '</section>' +
 
@@ -265,6 +363,20 @@ Pages.diet = {
       waterMinus() {
         const day = Pages.diet.date;
         Store.data.diet.water[day] = Math.max(0, (Number(Store.data.diet.water[day]) || 0) - cupMl);
+        Store.save();
+        App.refresh();
+      },
+      coffeePlus() {
+        const day = Pages.diet.date;
+        Store.data.diet.coffee = Store.data.diet.coffee || {};
+        Store.data.diet.coffee[day] = Math.min(6, (Number(Store.data.diet.coffee[day]) || 0) + 1);
+        Store.save();
+        App.refresh();
+      },
+      coffeeMinus() {
+        const day = Pages.diet.date;
+        Store.data.diet.coffee = Store.data.diet.coffee || {};
+        Store.data.diet.coffee[day] = Math.max(0, (Number(Store.data.diet.coffee[day]) || 0) - 1);
         Store.save();
         App.refresh();
       },
@@ -411,8 +523,29 @@ function openFoodModal(date, presetType) {
       fInput('name', '吃什么', { placeholder: '例如：鸡蛋', required: true, maxlength: 40 }) +
       fRow(
         fInput('portion', '分量', { placeholder: '例如：1 个 / 200 g', maxlength: 30 }),
-        fNumber('calories', '热量（kcal）', { value: '', min: 0, step: 1, placeholder: '可不填' })
+        fNumber('calories', '热量（kcal）', { value: '', min: 0, step: 1, placeholder: '留空自动估算' })
       ) +
+      fSelect(
+        'detail',
+        '小细节（可选）',
+        [
+          { value: '', label: '不用' },
+          { value: '去皮', label: '去皮' },
+          { value: '带皮', label: '带皮' },
+          { value: '少糖', label: '少糖' },
+          { value: '无糖', label: '无糖' },
+          { value: '全糖', label: '全糖' },
+          { value: '水煮', label: '水煮' },
+          { value: '蒸', label: '蒸' },
+          { value: '煎', label: '煎' },
+          { value: '炸', label: '炸' },
+          { value: '烤', label: '烤' },
+          { value: '大份', label: '大份' },
+          { value: '小份', label: '小份' },
+        ],
+        ''
+      ) +
+      '<div class="kcal-hint tiny muted" id="kcal-estimate">热量留空时，会按常见食物和分量估算</div>' +
       (foods.length
         ? '<div class="field"><span class="field-label">常吃食物（点一下填入）</span><div class="food-chips">' +
           foods
@@ -424,14 +557,30 @@ function openFoodModal(date, presetType) {
           '</div></div>'
         : ''),
     onMount(form) {
+      const nameEl = form.elements.name;
+      const portionEl = form.elements.portion;
+      const detailEl = form.elements.detail;
+      const hint = form.querySelector('#kcal-estimate');
+      const updateHint = () => {
+        if (!hint) return;
+        const est = estimateFoodCalories(nameEl.value, portionEl.value, detailEl ? detailEl.value : '');
+        hint.textContent = nameEl.value
+          ? '按常见食物估算约 ' + est + ' kcal（热量留空会自动填这个数）'
+          : '热量留空时，会按常见食物和分量估算';
+      };
+      if (nameEl) nameEl.addEventListener('input', updateHint);
+      if (portionEl) portionEl.addEventListener('input', updateHint);
+      if (detailEl) detailEl.addEventListener('change', updateHint);
+
       form.querySelectorAll('[data-food]').forEach((chip) => {
         chip.addEventListener('click', () => {
           const food = findById(foods, chip.dataset.food);
           if (!food) return;
-          form.elements.name.value = food.name;
-          form.elements.portion.value = food.portion || '';
+          nameEl.value = food.name;
+          portionEl.value = food.portion || '';
           form.elements.calories.value = Number(food.calories) || '';
-          form.elements.name.focus();
+          nameEl.focus();
+          updateHint();
         });
       });
     },
@@ -441,13 +590,18 @@ function openFoodModal(date, presetType) {
         toast('请填写吃什么', 'err');
         return false;
       }
+      const portion = String(data.portion || '').trim();
+      const detail = String(data.detail || '').trim();
+      const rawKcal = String(data.calories || '').trim();
+      const calories = rawKcal !== '' ? Math.max(0, Number(rawKcal) || 0) : estimateFoodCalories(name, portion, detail);
       Store.data.diet.meals.push({
         id: uid(),
         date: data.date || todayKey(),
         type: data.type || 'breakfast',
         name: name,
-        portion: String(data.portion || '').trim(),
-        calories: Number(data.calories) || 0,
+        portion: portion,
+        detail: detail,
+        calories: calories,
         createdAt: Date.now(),
       });
       Store.save();
@@ -474,11 +628,13 @@ function openFavFoodModal() {
         toast('请填写食物名称', 'err');
         return false;
       }
+      const portion = String(data.portion || '').trim();
+      const rawKcal = String(data.calories || '').trim();
       Store.data.diet.foods.push({
         id: uid(),
         name: name,
-        portion: String(data.portion || '').trim(),
-        calories: Number(data.calories) || 0,
+        portion: portion,
+        calories: rawKcal !== '' ? Math.max(0, Number(rawKcal) || 0) : estimateFoodCalories(name, portion, ''),
         category: data.category || foodCategoryOf(name),
       });
       Store.save();

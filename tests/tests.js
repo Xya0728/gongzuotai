@@ -1098,6 +1098,64 @@ test('P19 底部模块可以拖进日程，饮食可添加', async () => {
   closeModal();
 });
 
+/* ---------------- P20 热量公式与咖啡 ---------------- */
+
+test('P20 食物热量按分量和做法估算', async () => {
+  const skin = estimateFoodCalories('鸡腿', '1 个', '带皮');
+  const peeled = estimateFoodCalories('鸡腿', '1 个', '去皮');
+  assert(skin > peeled, '带皮应比去皮高：' + skin + ' vs ' + peeled);
+  assert(peeled > 100 && peeled < 200, '去皮鸡腿热量大约 165：' + peeled);
+  eq(estimateFoodCalories('美式咖啡', '1 杯', ''), 5, '美式咖啡');
+  assert(estimateFoodCalories('米饭', '200 g', '') > 200, '200g 米饭 > 200 kcal');
+  assert(estimateFoodCalories('奶茶', '1 杯', '无糖') < estimateFoodCalories('奶茶', '1 杯', '全糖'), '糖度影响热量');
+});
+
+test('P20 添加饮食留空热量会自动估算，并记录做法', async () => {
+  resetData();
+  const t = todayKey();
+  Pages.diet.date = t;
+  Pages.diet.month = monthKeyOf(t);
+  showPage('diet');
+  document.querySelector('[data-act="addFood"]').click();
+  await tick(150);
+  const form = document.querySelector('#modal-root form');
+  form.elements.name.value = '鸡腿';
+  form.elements.portion.value = '1 个';
+  form.elements.detail.value = '去皮';
+  form.elements.name.dispatchEvent(new Event('input', { bubbles: true }));
+  form.elements.portion.dispatchEvent(new Event('input', { bubbles: true }));
+  await tick(80);
+  includes(form.querySelector('#kcal-estimate').textContent, '166', '实时估算');
+  form.requestSubmit();
+  await tick(220);
+  const item = Store.data.diet.meals[0];
+  assert(item, '应加入搭配');
+  eq(item.detail, '去皮', '做法');
+  eq(item.calories, 166, '自动估算热量');
+  includes(mainText(), '去皮', '页面显示做法');
+  includes(mainText(), '166', '页面显示热量');
+});
+
+test('P20 饮水旁边有咖啡栏，可以加减杯数', async () => {
+  resetData();
+  const t = todayKey();
+  Pages.diet.date = t;
+  Pages.diet.month = monthKeyOf(t);
+  showPage('diet');
+  const coffee = document.querySelector('.coffee-card');
+  assert(coffee, '应有咖啡卡片');
+  includes(coffee.textContent, '约 80 mg 咖啡因 / 杯');
+  coffee.querySelector('[data-act="coffeePlus"]').click();
+  await tick(160);
+  document.querySelector('.coffee-card [data-act="coffeePlus"]').click();
+  await tick(160);
+  eq(Store.data.diet.coffee[t], 2, '两杯咖啡');
+  includes(document.querySelector('.coffee-card').textContent, '160', '咖啡因');
+  document.querySelector('.coffee-card [data-act="coffeeMinus"]').click();
+  await tick(160);
+  eq(Store.data.diet.coffee[t], 1, '减一杯');
+});
+
 /* ---------------- 运行 ---------------- */
 
 (async function runAll() {

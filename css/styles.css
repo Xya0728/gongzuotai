@@ -1915,3 +1915,24 @@ body.modal-open { overflow: hidden; }
   .palette-tabs { width: 100%; }
   .palette-grid { grid-template-columns: 1fr; }
 }
+
+/* ---------------- 饮食热量估算与咖啡 ---------------- */
+
+.kcal-hint { margin: -2px 0 10px; line-height: 1.5; }
+.coffee-card .card-head { margin-bottom: 10px; }
+.coffee-body { display: flex; align-items: center; gap: 14px; }
+.coffee-big { display: flex; align-items: center; gap: 9px; }
+.coffee-ico {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: rgba(217, 119, 6, 0.13);
+  color: #b45309;
+}
+.coffee-ico .ic { width: 22px; height: 22px; }
+.coffee-big b { font-size: 30px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.coffee-big small { margin-left: 2px; font-size: 12px; font-weight: 550; color: var(--muted); }
+.coffee-meta { font-size: 11.5px; line-height: 1.5; color: var(--muted); }
+.coffee-meta b { color: var(--ink); }
