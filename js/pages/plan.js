@@ -314,7 +314,7 @@ Pages.plan = {
       const height = Math.max(26, ((b.endMin - b.startMin) / 60) * HOUR - 2);
       const width = 100 / b.laneCount;
       const left = b.lane * width;
-      const short = b.endMin - b.startMin < 45;
+      const short = b.endMin - b.startMin < 40;
       if (b.kind === 'fixed') {
         return (
           '<div class="tl-block is-fixed" style="top:' + top + 'px;height:' + height + 'px" title="' +

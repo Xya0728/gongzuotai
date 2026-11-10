@@ -620,6 +620,23 @@ test('P13 采用全部写入计划，也可以整批撤销', async () => {
   eq(Store.data.plan.drafts[t].status, 'ready', '撤销后建议应回到待定');
 });
 
+test('P13 已有同名计划不再重复建议', async () => {
+  resetData();
+  const t = seedScheduleData();
+  Store.data.plan.items = [
+    { id: 'dup-plan', date: t, title: '处理 1 个待发货订单', start: '09:00', end: '09:40', priority: 'high', createdAt: Date.now() },
+  ];
+  Store.save();
+  Pages.plan.date = t;
+  showPage('plan');
+  const draft = Store.data.plan.drafts[t];
+  assert(draft, '应生成草稿');
+  assert(
+    !draft.items.some((i) => i.title === '处理 1 个待发货订单'),
+    '同名任务不应再被建议：' + draft.items.map((i) => i.title).join(' / ')
+  );
+});
+
 test('P13 时间轴可以拖动计划改时间', async () => {
   resetData();
   const t = todayKey();

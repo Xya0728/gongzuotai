@@ -154,7 +154,7 @@ Pages.home = {
           ? weekPlans
               .slice()
               .sort(byDateAsc)
-              .map((p) => '周' + '一二三四五六日'[parseDate(p.date).getDay() || 7] + ' ' + p.name)
+              .map((p) => weekdayCN(p.date) + ' ' + p.name)
               .slice(0, 3)
               .join(' · ')
           : '去健身页安排本周训练',

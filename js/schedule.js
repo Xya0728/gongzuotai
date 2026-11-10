@@ -109,7 +109,9 @@ const Scheduler = {
     const fixed = scheduleFixedBlocks(date, prefs);
     const busy = fixed.map((b) => [b.startMin, b.endMin]);
     const dayItems = d.plan.items.filter((i) => i.date === date);
+    const existingTitles = {};
     dayItems.forEach((i) => {
+      existingTitles[scheduleNorm(i.title)] = true;
       const s = timeToMin(i.start);
       const e = timeToMin(i.end);
       if (s !== null && e !== null && e > s) busy.push([s, e]);
@@ -263,6 +265,7 @@ const Scheduler = {
     const counts = {};
     for (const c of candidates) {
       if (chosen.length >= SCHEDULE_MAX_ITEMS) break;
+      if (existingTitles[scheduleNorm(c.title)]) continue;
       const cap = SCHEDULE_MAX_PER_MODULE[c.module] || 1;
       if ((counts[c.module] || 0) >= cap) continue;
       const duration = Math.max(20, Math.round(c.duration / 5) * 5);
