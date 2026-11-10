@@ -1,15 +1,44 @@
 'use strict';
 
 /* =========================================================
-   饮食计划
+   饮食计划 · 一日搭配 + 热量
    ========================================================= */
+
+const MEAL_SHARE = { breakfast: 0.25, lunch: 0.35, dinner: 0.3, snack: 0.1 };
+
+function dietItemKcal(item) {
+  if (item.calories !== undefined && item.calories !== null && item.calories !== '') return Number(item.calories) || 0;
+  const food = (Store.data.diet.foods || []).filter((f) => f.name === item.name)[0];
+  return food ? Number(food.calories) || 0 : 0;
+}
+
+function dietMealKcal(items) {
+  return sumBy(items, (m) => dietItemKcal(m));
+}
+
+function dietTotalKcal(meals) {
+  return dietMealKcal(meals);
+}
+
+function dietBmi(weight, height) {
+  if (!weight || !height) return 0;
+  return weight / Math.pow(height / 100, 2);
+}
+
+function dietBmiTone(bmi) {
+  if (!bmi) return { label: '未设置', tone: 'gray' };
+  if (bmi < 18.5) return { label: '偏瘦', tone: 'amber' };
+  if (bmi < 24) return { label: '正常', tone: 'green' };
+  if (bmi < 28) return { label: '偏高', tone: 'amber' };
+  return { label: '偏高较多', tone: 'red' };
+}
 
 function dietCalendarBlock(mk, meals, water, selected, today) {
   const cells = monthGrid(mk);
   const week = ['一', '二', '三', '四', '五', '六', '日'];
   return (
     '<section class="card cal-compact"><div class="card-head"><div><h2>饮食日历</h2>' +
-    '<p class="card-sub">点某一天，查看当天的三餐和饮水</p></div></div>' +
+    '<p class="card-sub">点某一天，查看当天的搭配和饮水</p></div></div>' +
     '<div class="cal-week">' + week.map((w) => '<span>' + w + '</span>').join('') + '</div>' +
     '<div class="cal-grid cal-grid-diet">' +
     cells
@@ -27,6 +56,7 @@ function dietCalendarBlock(mk, meals, water, selected, today) {
           '<span class="cal-day">' + parseDate(date).getDate() + '</span>' +
           '<span class="diet-dots">' + dots + '</span>' +
           (waterMl ? '<span class="cal-water" title="饮水 ' + waterMl + ' ml"></span>' : '') +
+          (dayMeals.length ? '<span class="diet-kcal">' + dietMealKcal(dayMeals) + '</span>' : '') +
           '</button>'
         );
       })
@@ -44,10 +74,13 @@ Pages.diet = {
     const isToday = date === todayKey();
     const mk = this.month || (this.month = monthKeyOf(date));
     if (monthKeyOf(date) !== mk) this.month = monthKeyOf(date);
+
     const monthMeals = d.diet.meals.filter((m) => m.date.indexOf(this.month) === 0);
     const meals = d.diet.meals.filter((m) => m.date === date);
-    const mainMeals = ['breakfast', 'lunch', 'dinner'];
-    const recorded = mainMeals.filter((type) => meals.some((m) => m.type === type)).length;
+    const totalKcal = dietTotalKcal(meals);
+    const target = Number(d.settings.calorieGoal) || 0;
+    const remainder = target - totalKcal;
+    const ratio = target ? Math.min(100, Math.round((totalKcal / target) * 100)) : 0;
 
     const water = Number(d.diet.water[date]) || 0;
     const goal = Number(d.settings.waterGoal) || 2000;
@@ -55,51 +88,73 @@ Pages.diet = {
     const cups = Math.max(1, Math.ceil(goal / cupMl));
     const filledCups = Math.min(cups, Math.floor(water / cupMl));
 
-    const weekStart = weekStartKey(todayKey());
-    const weekDays = {};
-    d.diet.meals.forEach((m) => {
-      if (m.date >= weekStart && m.date <= todayKey()) weekDays[m.date] = true;
-    });
-
     const metrics = d.body.metrics.slice().sort(byDateAsc);
     const latest = metrics[metrics.length - 1];
-    const chartPoints = metrics.slice(-14).map((m) => ({ label: fmtShortDate(m.date), value: Number(m.weight) || 0 }));
+    const weight = latest ? Number(latest.weight) || 0 : 0;
+    const height = Number(d.settings.height) || 0;
+    const bmi = dietBmi(weight, height);
+    const bmiInfo = dietBmiTone(bmi);
 
     el.innerHTML =
       pageHead(
         '饮食计划',
-        fmtDateCN(date, true) + ' · 已记录 ' + recorded + '/3 餐',
+        fmtDateCN(date, true) + ' · 今日搭配 ' + totalKcal + ' kcal' + (target ? ' / ' + target : ''),
         '<div class="month-nav">' +
           '<button class="icon-btn" data-act="prev" aria-label="前一天">' + icon('chevronL') + '</button>' +
           '<input class="input" type="date" id="diet-date" value="' + esc(date) + '" style="width:140px;height:34px">' +
           '<button class="icon-btn" data-act="next" aria-label="后一天">' + icon('chevronR') + '</button>' +
           (isToday ? '' : '<button class="btn sm" data-act="today">今天</button>') +
           '</div>' +
-          '<button class="btn primary" data-act="addFood">' + icon('plus') + '添加饮食</button>'
+          '<button class="btn primary" data-act="addFood">' + icon('plus') + '添加搭配</button>'
       ) +
 
-      '<div class="grid grid-4">' +
-      statCard({ label: '当日餐数', dot: true, value: recorded + '<small>/ 3 餐</small>', sub: meals.length ? '共 ' + meals.length + ' 项食物' : '还没有记录饮食' }) +
-      statCard({ label: '当日饮水', dot: true, value: water + '<small>ml</small>', sub: '目标 ' + goal + ' ml · ' + filledCups + '/' + cups + ' 杯' }) +
-      statCard({ label: '本周记录', dot: true, value: Object.keys(weekDays).length + '<small>天</small>', sub: '有饮食记录的天数' }) +
+      '<section class="card calorie-card">' +
+      '<div class="calorie-row">' +
+      '<div><div class="calorie-label">今日搭配热量</div>' +
+      '<div class="calorie-value">' + totalKcal + '<small> kcal</small></div></div>' +
+      '<div class="calorie-side">' +
+      (target
+        ? '<span class="chip ' + (remainder >= 0 ? 'green' : 'red') + '">' +
+          (remainder >= 0 ? '还剩 ' + remainder + ' kcal' : '超出 ' + -remainder + ' kcal') + '</span>' +
+          '<span class="tiny muted">目标 ' + target + ' kcal · ' + ratio + '%</span>'
+        : '<span class="chip amber">还没有设热量目标</span><span class="tiny muted">在「身高体重」里设置</span>') +
+      '</div></div>' +
+      '<div class="calorie-bar"><i class="' + (remainder < 0 ? 'over' : '') + '" style="width:' + ratio + '%"></i></div>' +
+      '<div class="calorie-meals">' +
+      MEALS.map((m) => {
+        const kcal = dietMealKcal(meals.filter((x) => x.type === m.value));
+        return '<span><b>' + esc(m.label) + '</b> ' + kcal + ' kcal</span>';
+      }).join('') +
+      '</div></section>' +
+
+      '<div class="grid grid-4 mt-16">' +
+      statCard({ label: '今日热量', dot: true, value: totalKcal + '<small>kcal</small>', sub: target ? '目标 ' + target + ' · 剩 ' + Math.max(0, remainder) : '还没有设目标' }) +
+      statCard({ label: '饮水', dot: true, value: water + '<small>ml</small>', sub: '目标 ' + goal + ' ml · ' + filledCups + '/' + cups + ' 杯' }) +
+      statCard({ label: '身高', dot: true, value: height ? height + '<small>cm</small>' : '—', sub: height ? '在下方可以修改' : '填身高后可以算 BMI' }) +
       statCard({
-        label: '最新体重',
+        label: '体重',
         dot: true,
-        value: latest ? latest.weight + '<small>kg</small>' : '—',
-        sub: latest ? fmtDateCN(latest.date) : '到健身或下方记录',
+        value: weight ? weight + '<small>kg</small>' : '—',
+        sub: bmi ? 'BMI ' + bmi.toFixed(1) + ' · ' + bmiInfo.label : latest ? fmtDateCN(latest.date) : '在下方记录',
       }) +
       '</div>' +
 
       '<div class="grid diet-cols mt-16">' +
       '<div class="stack">' +
-      '<section class="card"><div class="card-head"><div><h2>' + (isToday ? '今日饮食' : fmtDateCN(date, true) + ' 的饮食') + '</h2>' +
-      '<p class="card-sub">按餐次记录；也可以把下面的常吃食物拖进某一餐</p></div></div>' +
+      '<section class="card"><div class="card-head"><div><h2>' + (isToday ? '今日搭配' : fmtDateCN(date, true) + ' 的搭配') + '</h2>' +
+      '<p class="card-sub">按餐次排好吃什么；也可以把常吃食物拖进某一餐</p></div>' +
+      '<button class="btn ghost sm" data-act="addFood">+ 添加</button></div>' +
       MEALS.map((meal) => {
         const items = meals.filter((m) => m.type === meal.value);
+        const kcal = dietMealKcal(items);
+        const share = target ? Math.round(target * MEAL_SHARE[meal.value]) : 0;
+        const fill = share ? Math.min(100, Math.round((kcal / share) * 100)) : 0;
         return (
-          '<div class="meal" data-meal="' + meal.value + '"><div class="meal-head"><span class="meal-name">' + esc(meal.label) +
-          (items.length ? ' <span class="chip gray">' + items.length + ' 项</span>' : '') + '</span>' +
+          '<div class="meal" data-meal="' + meal.value + '">' +
+          '<div class="meal-head"><span class="meal-name">' + esc(meal.label) +
+          '<span class="meal-kcal">' + kcal + ' kcal' + (share ? ' / ' + share : '') + '</span></span>' +
           '<button class="btn ghost sm" data-act="addFood" data-type="' + meal.value + '">+ 添加</button></div>' +
+          (share ? '<div class="meal-bar"><i class="' + (kcal > share ? 'over' : '') + '" style="width:' + fill + '%"></i></div>' : '') +
           '<div class="meal-items">' +
           (items.length
             ? items
@@ -107,30 +162,32 @@ Pages.diet = {
                   (item) =>
                     '<span class="food-pill"><span class="food-ico">' + foodArt(item.name) + '</span>' +
                     esc(item.name) + (item.portion ? ' · ' + esc(item.portion) : '') +
+                    (dietItemKcal(item) ? ' <b class="pill-kcal">' + dietItemKcal(item) + ' kcal</b>' : '') +
                     '<button data-act="delFood" data-id="' + item.id + '" aria-label="删除">' + icon('x') + '</button></span>'
                 )
                 .join('')
-            : '<span class="tiny muted">还没有记录</span>') +
+            : '<span class="tiny muted">还没安排</span>') +
           '</div></div>'
         );
       }).join('') +
       '</section>' +
       '<section class="card"><div class="card-head"><div><h2>常吃食物</h2>' +
-      '<p class="card-sub">添加饮食时可以一键带入</p></div>' +
+      '<p class="card-sub">标了每份热量，拖进某一餐就会自动累计</p></div>' +
       '<button class="btn ghost sm" data-act="addFav">+ 新增</button></div>' +
       (d.diet.foods.length
         ? '<div class="food-grid">' +
           d.diet.foods
             .map(
               (f) =>
-                '<div class="food-card" draggable="true" data-food-id="' + f.id + '" title="拖到早餐/午餐/晚餐里">' +
+                '<div class="food-card" draggable="true" data-food-id="' + f.id + '" title="拖到早餐/午餐/晚餐/加餐里">' +
                 '<span class="food-thumb">' + foodArt(f.name, f.category) + '</span>' +
-                '<span class="food-meta"><b>' + esc(f.name) + '</b><span>' + esc(f.portion || '') + '</span></span>' +
+                '<span class="food-meta"><b>' + esc(f.name) + '</b><span>' + esc(f.portion || '') +
+                ' · ' + (Number(f.calories) || 0) + ' kcal</span></span>' +
                 '<button class="icon-btn danger" data-act="delFav" data-id="' + f.id + '" aria-label="删除">' + icon('trash') + '</button></div>'
             )
             .join('') +
           '</div>'
-        : emptyState('还没有常吃食物', '把每天都会吃的东西存起来，记录会快很多')) +
+        : emptyState('还没有常吃食物', '把每天都会吃的东西存起来，排搭配会快很多')) +
       '</section>' +
       '</div>' +
 
@@ -152,13 +209,22 @@ Pages.diet = {
       '</div>' +
       '</section>' +
 
-      '<section class="card"><div class="card-head"><div><h2>体重趋势</h2>' +
-      '<p class="card-sub">和健身模块共用</p></div>' +
-      '<button class="btn ghost sm" data-act="addWeight">+ 记录</button></div>' +
-      (chartPoints.length >= 2
-        ? lineChart(chartPoints, { height: 120, rangeText: '最低 ' + Math.min(...chartPoints.map((p) => p.value)) + ' · 最高 ' + Math.max(...chartPoints.map((p) => p.value)) + ' kg' })
-        : emptyState('还没有足够的体重记录', '记录两次以上就能看到趋势')) +
-      '</section>' +
+      '<section class="card"><div class="card-head"><div><h2>身高体重</h2>' +
+      '<p class="card-sub">用来算 BMI；体重会和健身模块共用一份数据</p></div></div>' +
+      '<form id="body-form">' +
+      fRow3(
+        fNumber('height', '身高（cm）', { value: height || '', min: 0, max: 250, step: 1, placeholder: '例如 175' }),
+        fNumber('weight', '体重（kg）', { value: weight || '', min: 0, max: 300, step: '0.1', placeholder: '例如 70' }),
+        fNumber('calorieGoal', '每日热量目标（kcal）', { value: target, min: 0, max: 6000, step: 50 })
+      ) +
+      '<div class="bmi-row">' +
+      '<span class="tiny muted">BMI</span> <b class="bmi-value">' + (bmi ? bmi.toFixed(1) : '—') + '</b>' +
+      '<span class="chip ' + bmiInfo.tone + '">' + bmiInfo.label + '</span>' +
+      (latest ? '<span class="tiny muted">体重记录于 ' + fmtDateCN(latest.date) + '</span>' : '') +
+      '</div>' +
+      '<div class="flex-between mt-12"><span class="tiny muted">填 0 或留空表示不设目标</span>' +
+      '<button class="btn sm primary" type="submit">保存</button></div>' +
+      '</form></section>' +
       '</div>' +
       '</div>';
 
@@ -202,9 +268,6 @@ Pages.diet = {
         Store.save();
         App.refresh();
       },
-      addWeight() {
-        openMetricModal(null);
-      },
       addFav() {
         openFavFoodModal();
       },
@@ -224,10 +287,48 @@ Pages.diet = {
       Pages.diet.month = monthKeyOf(dateInput.value);
       App.refresh();
     });
+
+    const bodyForm = el.querySelector('#body-form');
+    bodyForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const data = {};
+      new FormData(bodyForm).forEach((value, key) => {
+        data[key] = value;
+      });
+      const nextHeight = Number(data.height) || 0;
+      const nextWeight = Number(data.weight) || 0;
+      const nextGoal = Number(data.calorieGoal) || 0;
+      if (nextHeight < 0 || nextHeight > 250) {
+        toast('身高请填 0–250 cm', 'err');
+        return;
+      }
+      if (nextWeight < 0 || nextWeight > 300) {
+        toast('体重请填 0–300 kg', 'err');
+        return;
+      }
+      if (nextGoal < 0 || nextGoal > 6000) {
+        toast('热量目标请填 0–6000 kcal', 'err');
+        return;
+      }
+      Store.data.settings.height = nextHeight;
+      Store.data.settings.calorieGoal = nextGoal;
+      if (nextWeight > 0) {
+        const day = todayKey();
+        const existing = Store.data.body.metrics.filter((m) => m.date === day)[0];
+        if (existing) {
+          existing.weight = nextWeight;
+        } else {
+          Store.data.body.metrics.push({ id: uid(), date: day, weight: nextWeight, createdAt: Date.now() });
+        }
+      }
+      Store.save();
+      toast('身高体重已保存');
+      App.refresh();
+    });
   },
 };
 
-/* ---------------- 拖拽加餐 ---------------- */
+/* ---------------- 拖拽食物进餐次 ---------------- */
 
 function setupDietDnD(root) {
   let dragFoodId = null;
@@ -286,11 +387,12 @@ function setupDietDnD(root) {
         type: type,
         name: food.name,
         portion: food.portion || '',
+        calories: Number(food.calories) || 0,
         createdAt: Date.now(),
       });
       Store.save();
       const mealLabel = optionLabel(MEALS, type);
-      toast('已把「' + food.name + '」加到' + mealLabel);
+      toast('已把「' + food.name + '」排进' + mealLabel);
       App.refresh();
     });
   });
@@ -302,12 +404,15 @@ function openFoodModal(date, presetType) {
   const d = Store.data;
   const foods = d.diet.foods;
   openModal({
-    title: '添加饮食',
+    title: '添加搭配',
     size: 'small',
     body:
       fRow(fDate('date', '日期', date), fSelect('type', '餐次', MEALS, presetType || 'breakfast')) +
       fInput('name', '吃什么', { placeholder: '例如：鸡蛋', required: true, maxlength: 40 }) +
-      fInput('portion', '分量', { placeholder: '例如：1 个 / 200 g', maxlength: 30 }) +
+      fRow(
+        fInput('portion', '分量', { placeholder: '例如：1 个 / 200 g', maxlength: 30 }),
+        fNumber('calories', '热量（kcal）', { value: '', min: 0, step: 1, placeholder: '可不填' })
+      ) +
       (foods.length
         ? '<div class="field"><span class="field-label">常吃食物（点一下填入）</span><div class="food-chips">' +
           foods
@@ -325,6 +430,7 @@ function openFoodModal(date, presetType) {
           if (!food) return;
           form.elements.name.value = food.name;
           form.elements.portion.value = food.portion || '';
+          form.elements.calories.value = Number(food.calories) || '';
           form.elements.name.focus();
         });
       });
@@ -332,7 +438,7 @@ function openFoodModal(date, presetType) {
     onSubmit(data) {
       const name = String(data.name || '').trim();
       if (!name) {
-        toast('请填写吃了什么', 'err');
+        toast('请填写吃什么', 'err');
         return false;
       }
       Store.data.diet.meals.push({
@@ -341,10 +447,11 @@ function openFoodModal(date, presetType) {
         type: data.type || 'breakfast',
         name: name,
         portion: String(data.portion || '').trim(),
+        calories: Number(data.calories) || 0,
         createdAt: Date.now(),
       });
       Store.save();
-      toast('已记录 ' + name);
+      toast('已加入搭配');
       App.refresh();
     },
   });
@@ -358,8 +465,9 @@ function openFavFoodModal() {
       fInput('name', '食物名称', { placeholder: '例如：鸡胸肉', required: true, maxlength: 30 }) +
       fRow(
         fInput('portion', '常用分量', { placeholder: '例如：100 g', maxlength: 30 }),
-        fSelect('category', '分类', FOOD_CATEGORIES, '其他')
-      ),
+        fNumber('calories', '热量（kcal）', { value: '', min: 0, step: 1, placeholder: '例如：165' })
+      ) +
+      fSelect('category', '分类', FOOD_CATEGORIES, '其他'),
     onSubmit(data) {
       const name = String(data.name || '').trim();
       if (!name) {
@@ -370,6 +478,7 @@ function openFavFoodModal() {
         id: uid(),
         name: name,
         portion: String(data.portion || '').trim(),
+        calories: Number(data.calories) || 0,
         category: data.category || foodCategoryOf(name),
       });
       Store.save();

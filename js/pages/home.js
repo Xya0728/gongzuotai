@@ -93,8 +93,14 @@ Pages.home = {
     if (has('diet')) {
       const water = Number(d.diet.water[t]) || 0;
       const goal = Number(d.settings.waterGoal) || 2000;
+      const todayMeals = d.diet.meals.filter((m) => m.date === t);
+      const kcal = sumBy(todayMeals, (m) => Number(m.calories) || 0);
       cards.push(
-        homeMiniCard('diet', '饮水 ' + water + ' / ' + goal + ' ml', '一日餐饮搭配在饮食计划里排')
+        homeMiniCard(
+          'diet',
+          kcal ? '今日搭配 ' + kcal + ' kcal' : '今日还没排搭配',
+          '饮水 ' + water + ' / ' + goal + ' ml'
+        )
       );
     }
     if (has('games')) {

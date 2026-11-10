@@ -770,6 +770,74 @@ test('P14 首页与设置不再展示打卡统计', async () => {
   includes(mainText(), '学习目标');
 });
 
+/* ---------------- P15 饮食搭配与热量 ---------------- */
+
+test('P15 饮食热量由搭配计划累计', async () => {
+  resetData();
+  const t = todayKey();
+  Store.data.diet.meals = [
+    { id: 'dm1', date: t, type: 'breakfast', name: '燕麦', portion: '50 g', calories: 190 },
+    { id: 'dm2', date: t, type: 'lunch', name: '米饭', portion: '1 碗' },
+    { id: 'dm3', date: t, type: 'lunch', name: '鸡胸肉', portion: '100 g', calories: 165 },
+  ];
+  Store.data.settings.calorieGoal = 1000;
+  Store.save();
+  Pages.diet.date = t;
+  Pages.diet.month = monthKeyOf(t);
+  showPage('diet');
+  includes(document.querySelector('.calorie-value').textContent, '555', '总热量');
+  includes(mainText(), '还剩 445', '剩余热量');
+  const bar = document.querySelector('.meal[data-meal="lunch"] .meal-bar i');
+  assert(bar && parseFloat(bar.style.width) > 0, '午餐应有热量进度条');
+  assert(mainText().indexOf('打卡') === -1, '不应出现打卡');
+  assert(mainText().indexOf('已记录') === -1, '不应出现已记录');
+});
+
+test('P15 身高体重保存后会算 BMI', async () => {
+  resetData();
+  const t = todayKey();
+  Pages.diet.date = t;
+  Pages.diet.month = monthKeyOf(t);
+  showPage('diet');
+  const form = document.querySelector('#body-form');
+  assert(form, '应有身高体重表单');
+  form.elements.height.value = '175';
+  form.elements.weight.value = '70';
+  form.elements.calorieGoal.value = '2200';
+  form.requestSubmit();
+  await tick(220);
+  eq(Store.data.settings.height, 175, '身高');
+  eq(Store.data.settings.calorieGoal, 2200, '热量目标');
+  const metric = Store.data.body.metrics.filter((m) => m.date === t)[0];
+  assert(metric, '应写入体重记录');
+  eq(Number(metric.weight), 70, '体重');
+  includes(mainText(), '22.9', 'BMI');
+  includes(mainText(), '正常', 'BMI 区间');
+});
+
+test('P15 默认饮品带热量，拖进加餐会累计', async () => {
+  resetData();
+  const names = Store.data.diet.foods.map((f) => f.name);
+  ['美式咖啡', '拿铁', '奶茶', '可乐', '橙汁'].forEach((n) => assert(names.indexOf(n) >= 0, '缺少饮品 ' + n));
+  const t = todayKey();
+  Pages.diet.date = t;
+  Pages.diet.month = monthKeyOf(t);
+  showPage('diet');
+  const card = Array.prototype.find.call(document.querySelectorAll('.food-card'), (el) => el.textContent.indexOf('奶茶') >= 0);
+  const meal = document.querySelector('.meal[data-meal="snack"]');
+  assert(card && meal, '应有奶茶卡片和加餐区域');
+  const dt = new DataTransfer();
+  card.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+  meal.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: dt }));
+  await tick(250);
+  const item = Store.data.diet.meals[0];
+  assert(item, '应加入搭配');
+  eq(item.name, '奶茶', '食物名称');
+  eq(item.calories, 350, '热量');
+  eq(item.type, 'snack', '餐次');
+  includes(mainText(), '350', '页面应显示热量');
+});
+
 /* ---------------- 运行 ---------------- */
 
 (async function runAll() {

@@ -1605,3 +1605,39 @@ body.modal-open { overflow: hidden; }
   .routine-ex-row { grid-template-columns: 1fr 1fr; }
   .routine-ex-row input[data-rex-name] { grid-column: 1 / -1; }
 }
+
+/* ---------------- 饮食热量 ---------------- */
+
+.calorie-card { margin-top: 16px; }
+.calorie-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.calorie-label { font-size: 12px; color: var(--muted); }
+.calorie-value { font-size: 34px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; }
+.calorie-value small { font-size: 14px; font-weight: 550; color: var(--muted); }
+.calorie-side { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.calorie-bar {
+  margin-top: 12px;
+  height: 10px;
+  border-radius: 99px;
+  background: rgba(22, 163, 74, 0.1);
+  overflow: hidden;
+}
+.calorie-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #16a34a, #65a30d);
+  transition: width 0.3s ease;
+}
+.calorie-bar i.over { background: linear-gradient(90deg, #dc2626, #f97316); }
+.calorie-meals { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; font-size: 11.5px; color: var(--muted); }
+.calorie-meals b { color: var(--ink); font-weight: 600; margin-right: 4px; }
+
+.meal-kcal { margin-left: 8px; font-size: 11px; font-weight: 550; color: var(--muted); }
+.meal-bar { height: 4px; border-radius: 99px; background: rgba(22, 163, 74, 0.1); overflow: hidden; margin: 2px 0 8px; }
+.meal-bar i { display: block; height: 100%; border-radius: 99px; background: #4ade80; }
+.meal-bar i.over { background: #f87171; }
+.pill-kcal { font-size: 10.5px; font-weight: 600; color: #15803d; }
+.diet-kcal { position: absolute; right: 6px; top: 5px; font-size: 9px; color: #15803d; font-weight: 600; }
+
+.bmi-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.bmi-value { font-size: 18px; font-weight: 700; }
