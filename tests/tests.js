@@ -1158,15 +1158,19 @@ test('P20 饮水旁边有咖啡栏，可以加减杯数', async () => {
 
 /* ---------------- P21 首页简约风格 ---------------- */
 
-test('P21 首页顶部改为浅色简约配色', async () => {
+test('P21 首页顶部浅色简约，天气有天气背景', async () => {
   resetData();
   App.render();
   const hero = document.querySelector('.home-hero');
   eq(getComputedStyle(hero).color, 'rgb(26, 31, 40)', 'Hero 文字应为深色');
-  const weatherBg = getComputedStyle(document.querySelector('.home-weather')).backgroundColor;
-  assert(/rgba?\(24, 33, 50/.test(weatherBg), '天气卡应是低调的中性底色：' + weatherBg);
+  const weather = document.querySelector('.home-weather');
+  const weatherBg = getComputedStyle(weather).backgroundImage;
+  assert(/gradient/.test(weatherBg), '天气卡应有天气背景：' + weatherBg);
+  assert(/w-/.test(weather.className), '天气卡应带天气状态类：' + weather.className);
   const clockSize = parseFloat(getComputedStyle(document.querySelector('.hero-clock')).fontSize);
-  assert(clockSize >= 54, '时钟仍然醒目：' + clockSize);
+  assert(clockSize >= 80, '时钟应更大：' + clockSize);
+  const secSize = parseFloat(getComputedStyle(document.querySelector('.hero-clock small')).fontSize);
+  assert(secSize >= 22, '秒数应清楚：' + secSize);
   const bg = getComputedStyle(hero).backgroundImage;
   assert(/gradient/.test(bg), '保留轻微渐变层次');
 });
@@ -1222,6 +1226,19 @@ test('P22 新增常吃食物时实时估算热量', async () => {
   assert(food, '应保存常吃食物');
   eq(food.calories, 350, '自动填入热量');
   includes(mainText(), '奶茶', '页面显示');
+});
+
+/* ---------------- P23 天气背景 ---------------- */
+
+test('P23 天气状态对应不同背景', async () => {
+  eq(homeWeatherTone(0, 14), 'clear', '晴天');
+  eq(homeWeatherTone(0, 22), 'night-clear', '晴夜');
+  eq(homeWeatherTone(61, 14), 'rain', '下雨');
+  eq(homeWeatherTone(3, 14), 'cloud', '多云');
+  eq(homeWeatherTone(45, 14), 'fog', '雾');
+  eq(homeWeatherTone(73, 14), 'snow', '雪');
+  eq(homeWeatherText(0), '晴');
+  eq(homeWeatherText(61), '小雨');
 });
 
 /* ---------------- 运行 ---------------- */

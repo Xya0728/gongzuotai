@@ -1977,3 +1977,59 @@ body.modal-open { overflow: hidden; }
 @media (max-width: 760px) {
   .home-weather { width: auto; flex-basis: auto; }
 }
+
+/* ---------------- 首页时钟与 Apple 天气部件 ---------------- */
+
+.home-hero { padding: 26px 32px; }
+.hero-clock {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 92px;
+  letter-spacing: -0.055em;
+  white-space: nowrap;
+}
+.clock-hm { display: inline-block; }
+.hero-clock small { margin-left: 0; font-size: 26px; letter-spacing: -0.02em; color: #8b93a1; }
+
+.home-weather {
+  position: relative;
+  overflow: hidden;
+  width: 300px;
+  flex-basis: 300px;
+  color: #fff;
+  background: linear-gradient(165deg, #5b8fd6, #8fc0ea);
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  box-shadow:
+    0 22px 40px -30px rgba(30, 64, 120, 0.85),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42);
+}
+.home-weather::after {
+  content: "";
+  position: absolute;
+  right: -38px;
+  top: -50px;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  pointer-events: none;
+}
+.home-weather.w-clear { background: linear-gradient(165deg, #3b82c4, #87c5ee 62%, #cfe9fb); }
+.home-weather.w-night-clear { background: linear-gradient(165deg, #1b2a4a, #3a4f79); }
+.home-weather.w-cloud { background: linear-gradient(165deg, #677b92, #a9b8c8); }
+.home-weather.w-night-cloud { background: linear-gradient(165deg, #2b3448, #566277); }
+.home-weather.w-rain { background: linear-gradient(165deg, #3d5268, #6f8aa0); }
+.home-weather.w-snow { background: linear-gradient(165deg, #5f7890, #a9c1d4); }
+.home-weather.w-fog { background: linear-gradient(165deg, #78848f, #b3bdc7); }
+.home-weather .weather-ico .ic { color: #fff; }
+.home-weather .weather-main b { color: #fff; font-size: 42px; }
+.home-weather .weather-main span { color: rgba(255, 255, 255, 0.92); }
+.home-weather .weather-meta { color: rgba(255, 255, 255, 0.82); }
+.home-weather .weather-refresh { color: rgba(255, 255, 255, 0.86); }
+
+@media (max-width: 760px) {
+  .hero-clock { font-size: 66px; }
+  .hero-clock small { font-size: 20px; }
+  .home-weather { width: auto; flex-basis: auto; }
+}

@@ -8,7 +8,7 @@ const WEATHER_CACHE_KEY = 'xya.weather.shantou.v1';
 const WEATHER_URL =
   'https://api.open-meteo.com/v1/forecast?latitude=23.354&longitude=116.682' +
   '&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m' +
-  '&timezone=Asia%2FShanghai';
+  '&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=Asia%2FShanghai';
 
 const WMO_TEXT = {
   0: '晴',
@@ -49,6 +49,15 @@ function homeWeatherIcon(code) {
   if (code === 0 || code === 1) return 'sun';
   if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82) || (code >= 95 && code <= 99)) return 'rain';
   return 'cloud';
+}
+
+function homeWeatherTone(code, hour) {
+  const night = hour < 6 || hour >= 19;
+  if (code === 0 || code === 1) return night ? 'night-clear' : 'clear';
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snow';
+  if (code === 45 || code === 48) return 'fog';
+  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82) || (code >= 95 && code <= 99)) return 'rain';
+  return night ? 'night-cloud' : 'cloud';
 }
 
 function homeHeroTone(hour) {
@@ -187,14 +196,14 @@ Pages.home = {
       '<section class="home-hero" style="--hero-tint:' + tone.a + '">' +
       '<div class="home-hero-main">' +
       '<div class="hero-eyebrow">' + esc(fmtDateCN(t, true)) + ' · ' + esc(greeting()) + '</div>' +
-      '<div class="hero-clock" id="home-clock">--:--<small>:--</small></div>' +
+      '<div class="hero-clock" id="home-clock"><span class="clock-hm">--:--</span><small>:--</small></div>' +
       '<div class="hero-sub">' +
       '<span>' + (planItems.length ? '今天有 ' + planItems.length + ' 项安排' : '今天还没有安排') + '</span>' +
       '<span>本周训练 ' + weekPlans.length + ' 次</span>' +
       (dietKcal ? '<span>今日搭配 ' + dietKcal + ' kcal</span>' : '') +
       '</div>' +
       '</div>' +
-      '<div class="home-weather" id="home-weather">' +
+      '<div class="home-weather w-cloud" id="home-weather">' +
       '<div class="weather-top">' +
       '<span class="weather-ico" id="weather-ico">' + icon('cloud') + '</span>' +
       '<div class="weather-main"><b id="weather-temp">--°</b>' +
@@ -305,7 +314,9 @@ Pages.home = {
         return;
       }
       const d = new Date();
-      node.innerHTML = pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + '<small>:' + pad2(d.getSeconds()) + '</small>';
+      node.innerHTML =
+        '<span class="clock-hm">' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + '</span>' +
+        '<small>:' + pad2(d.getSeconds()) + '</small>';
     };
     tick();
     this._timer = setInterval(tick, 1000);
@@ -352,6 +363,9 @@ Pages.home = {
           clearTimeout(timer);
           const cur = json && json.current;
           if (!cur || typeof cur.temperature_2m !== 'number') throw new Error('weather payload');
+          const daily = json.daily || {};
+          const max = daily.temperature_2m_max && daily.temperature_2m_max[0];
+          const min = daily.temperature_2m_min && daily.temperature_2m_min[0];
           const data = {
             at: Date.now(),
             temp: Math.round(cur.temperature_2m),
@@ -359,6 +373,8 @@ Pages.home = {
             humidity: Math.round(cur.relative_humidity_2m),
             wind: Math.round(cur.wind_speed_10m),
             code: Number(cur.weather_code) || 0,
+            high: typeof max === 'number' ? Math.round(max) : null,
+            low: typeof min === 'number' ? Math.round(min) : null,
           };
           homeWriteWeatherCache(data);
           done(data, '');
@@ -380,6 +396,7 @@ Pages.home = {
     const desc = box.querySelector('#weather-desc');
     const meta = box.querySelector('#weather-meta');
     if (!data) {
+      box.className = 'home-weather w-cloud';
       iconBox.innerHTML = icon('cloud');
       temp.textContent = '—';
       desc.textContent = '汕头 · 天气暂不可用';
@@ -387,11 +404,13 @@ Pages.home = {
       return;
     }
     const text = homeWeatherText(data.code);
+    box.className = 'home-weather w-' + homeWeatherTone(data.code, new Date().getHours());
     iconBox.innerHTML = icon(homeWeatherIcon(data.code));
     temp.textContent = data.temp + '°';
     desc.textContent = '汕头 · ' + text + (note === 'offline' ? ' · 离线' : '');
-    meta.textContent =
+    meta.innerHTML =
+      (data.high !== null && data.high !== undefined ? '最高 ' + data.high + '° · 最低 ' + data.low + '°<br>' : '') +
       '体感 ' + data.feels + '° · 湿度 ' + data.humidity + '% · 风 ' + data.wind + ' km/h' +
-      (note === 'offline' ? ' · 上次更新 ' + saveClock(new Date(data.at)) : '');
+      (note === 'offline' ? '<br>上次更新 ' + esc(saveClock(new Date(data.at))) : '');
   },
 };
