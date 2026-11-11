@@ -1,61 +1,64 @@
-Xya的工作台 —— 在 iPhone 上使用（PWA + Tailscale）
+Xya的工作台 —— 在 iPhone 上使用
 ================================================
 
-一、它能做成什么样
+不用上架 App Store，也不用外区账号。下面两种方式选一种。
+
+方案 A：同一 Wi-Fi（最简单，不需要在 iPhone 装任何 App）
 ------------------------------------------------
-·  iPhone 主屏幕上的一个全屏 App 图标，打开没有地址栏
-·  数据仍然存在 Mac 的 data/工作台数据.json
-·  不需要上架 App Store，不需要 Apple 开发者账号
-·  通过 Tailscale 私有网络访问，不在公网暴露
+适合：在家、Mac 和 iPhone 连同一个 Wi-Fi。
 
-二、第一次安装
+1. 先在 Mac 上关闭之前的工作台窗口（如果开着）。
+2. 双击「启动手机访问（同一Wi-Fi）.command」。
+   它会打印两行地址，例如：
+     本机地址：http://127.0.0.1:8765/
+     手机地址：http://192.168.18.50:8765/
+3. 第一次启动时 macOS 可能询问是否允许 Python 接受传入连接，点「允许」。
+4. iPhone 连同一个 Wi-Fi，Safari 打开「手机地址」。
+5. 点分享 → 添加到主屏幕。以后从桌面图标打开就是全屏。
+
+说明：
+· 数据仍然在 Mac 的 data/工作台数据.json
+· Mac 必须开机并保持这个终端窗口开着
+· HTTP 下 iOS 不注册 Service Worker，所以没有离线缓存；
+  但主屏幕图标和全屏打开仍然可用
+· 只建议在自家 Wi-Fi 使用，不要在公共 Wi-Fi 开这个模式
+
+方案 B：Tailscale（能在外网用，但 iPhone 需要能装 Tailscale）
 ------------------------------------------------
-1. Mac 和 iPhone 都安装 Tailscale，并登录同一个账号：
-     https://tailscale.com/download
-   Mac 上装好后，确认 Tailscale 菜单栏显示已连接。
+适合：想在外面、不同网络下也能打开。
+前提：Mac 和 iPhone 都安装 Tailscale 并登录同一个账号。
+如果 iPhone App Store 搜不到 Tailscale，就用方案 A。
 
-2. 在 Mac 上双击「启动Xya的工作台.command」，保持终端窗口开着。
-   然后双击「启动手机访问.command」。
-   它会执行 tailscale serve，把本机 8765 端口转成 HTTPS，
-   并打印一个类似下面的地址：
-     https://你的Mac名.你的tailnet.ts.net
+1. Mac 安装 Tailscale（官网 standalone 版，不要 App Store 版，
+   因为它不带命令行）。
+2. Mac 和 iPhone 登录同一个 Tailscale 账号。
+3. Mac 双击「启动Xya的工作台.command」，再双击「启动手机访问.command」。
+4. 脚本会打印 https://你的Mac名.你的tailnet.ts.net
+5. iPhone Safari 打开这个 https 地址 → 分享 → 添加到主屏幕。
+6. 这个模式支持 Service Worker，能离线打开界面；数据仍在 Mac。
 
-   如果脚本提示失败，在终端手动执行：
-     sudo "/Applications/Tailscale.app/Contents/MacOS/Tailscale" serve --bg 8765
+如果 `tailscale serve` 提示 HTTPS 未启用：
+  打开 https://login.tailscale.com/admin/dns ，启用 HTTPS Certificates。
 
-3. 在 iPhone 的 Safari 打开这个 https:// 地址。
-   点底部「分享」→「添加到主屏幕」→ 添加。
-   以后从主屏幕图标打开，就是全屏 App。
-
-三、数据怎么走
+方案 C：在外面用，又不想装 Tailscale（可选，需额外配置）
 ------------------------------------------------
-·  iPhone 连得上 Mac 时：读写 Mac 的 data/工作台数据.json
-·  连不上时：Service Worker 会打开上次缓存的界面，数据先用这台
-   iPhone 的本地存储，页面顶部会显示「离线模式」
-·  恢复连接后（重新打开 App、网络恢复、切回前台）会自动尝试同步：
-   按最后修改时间，新的覆盖旧的，并给出提示
-·  仍然是单用户、最后写入者获胜；不要同时在 Mac 和 iPhone 上改同一条数据
+可以在 Mac 上跑一个 HTTPS 隧道（例如 Cloudflare Tunnel / ngrok），
+把 127.0.0.1:8765 转成一个 https 地址，iPhone 只开 Safari 即可。
+优点：能注册 Service Worker、可离线、任何网络都能用。
+代价：需要额外账号/域名，且服务会经过第三方；不建议把地址公开。
+需要的话再单独配置，并加访问保护。
 
-四、日常使用
+数据怎么走
 ------------------------------------------------
-·  Mac 需要开机并运行「启动Xya的工作台.command」，iPhone 才能同步
-·  Tailscale 需要保持登录
-·  更新了工作台代码后：在 App 里下拉刷新或完全关闭再打开；
-   侧栏（手机上是「更多」弹层）会显示版本号，方便确认
-·  数据备份仍然用「数据与设置」→「导出备份」，建议偶尔导出一份
+· 连得上 Mac：读写 Mac 的数据文件
+· 连不上：显示「离线模式」，修改先存在 iPhone，恢复后按时间同步
+· 单用户、最后修改者获胜；不要同时在 Mac 和 iPhone 改同一条数据
+· 仍然建议偶尔在「数据与设置」里导出备份
 
-五、限制
+常见问题
 ------------------------------------------------
-·  这是 PWA，不是 App Store 应用；没有后台推送、后台同步
-·  天气需要联网（Open-Meteo），离线时显示上次缓存
-·  不要执行 tailscale funnel，那会把服务公开到互联网
-·  如果换了 Wi-Fi、Tailscale 地址变化，重新在 Safari 打开新地址并
-   重新「添加到主屏幕」
-
-六、常见问题
-------------------------------------------------
-·  打开是白屏：先确认 Mac 上的服务窗口还在，Tailscale 已连接
-·  还是旧界面：完全关闭主屏幕 App 再打开；或 Safari 打开地址后刷新
-·  提示「离线模式」：Mac 服务或 Tailscale 断了，恢复后会自动同步
-·  想撤销手机访问：在 Mac 终端执行
-     tailscale serve reset
+· 手机打不开：确认 Mac 和 iPhone 同一 Wi-Fi；确认终端窗口没关；
+  macOS 防火墙允许 Python 接收入站连接
+· 还是旧界面：主屏幕 App 完全关闭再打开，或在 Safari 刷新
+· 想停止手机访问：关闭那个终端窗口即可
+· 换 Wi-Fi 后 IP 变了：重新运行脚本，用新打印的地址

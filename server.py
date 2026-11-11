@@ -153,12 +153,24 @@ def already_running(port):
         return False
 
 
-def pick_port(start):
+def lan_ip():
+    """当前 Wi-Fi 下的局域网 IP；拿不到就返回空字符串。"""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.connect(("8.8.8.8", 80))
+        return sock.getsockname()[0]
+    except OSError:
+        return ""
+    finally:
+        sock.close()
+
+
+def pick_port(start, host="127.0.0.1"):
     for offset in range(0, 20):
         candidate = start + offset
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            sock.bind(("127.0.0.1", candidate))
+            sock.bind((host, candidate))
             sock.close()
             return candidate
         except OSError:
@@ -171,26 +183,40 @@ def main():
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--data-dir", default=os.path.join(ROOT, "data"))
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument("--lan", action="store_true", help="允许同一 Wi-Fi 下的手机访问")
     args = parser.parse_args()
 
     if args.port == 8765 and already_running(args.port):
         url = "http://127.0.0.1:%d/" % args.port
-        print("工作台已经在运行：%s" % url, flush=True)
-        if not args.no_browser:
-            webbrowser.open(url)
+        if args.lan:
+            print("工作台已经在运行，但只监听本机。", flush=True)
+            print("如果要让手机访问，请先关闭原来的工作台窗口，再运行「启动手机访问（同一Wi-Fi）.command」。", flush=True)
+        else:
+            print("工作台已经在运行：%s" % url, flush=True)
+            if not args.no_browser:
+                webbrowser.open(url)
         return
 
+    host = "0.0.0.0" if args.lan else "127.0.0.1"
     store = DataStore(os.path.abspath(args.data_dir))
-    port = pick_port(args.port)
-    server = ThreadingHTTPServer(("127.0.0.1", port), build_handler(store))
+    port = pick_port(args.port, host)
+    server = ThreadingHTTPServer((host, port), build_handler(store))
     url = "http://127.0.0.1:%d/" % port
 
     print("", flush=True)
     print("  Xya 的工作台", flush=True)
     print("  ----------------------------------------", flush=True)
-    print("  地址：%s" % url, flush=True)
+    print("  本机地址：%s" % url, flush=True)
+    if args.lan:
+        ip = lan_ip()
+        if ip:
+            print("  手机地址：http://%s:%d/   （iPhone 和 Mac 连同一个 Wi-Fi）" % (ip, port), flush=True)
+        else:
+            print("  手机地址：没有拿到局域网 IP，请检查 Wi-Fi", flush=True)
+    else:
+        print("  只在本机运行；手机访问请用「启动手机访问（同一Wi-Fi）.command」", flush=True)
     print("  数据：%s" % store.path, flush=True)
-    print("  只在本机运行，关闭这个窗口即停止服务", flush=True)
+    print("  关闭这个窗口即停止服务", flush=True)
     print("", flush=True)
 
     if not args.no_browser:

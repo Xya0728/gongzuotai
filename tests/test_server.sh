@@ -87,6 +87,24 @@ CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/data/%E5%B
 CODE=$(curl -s -o /dev/null -w '%{http_code}' -X PUT -H 'Content-Type: application/json' -d '{"data":{"a":1}}' "http://127.0.0.1:$PORT/other")
 [ "$CODE" = "404" ]; check "非数据接口拒绝写入（$CODE）" $?
 
+LAN_DATA="$(mktemp -d)"
+LAN_LOG="$(mktemp)"
+"$PYTHON" -u "$ROOT/server.py" --port 8798 --lan --no-browser --data-dir "$LAN_DATA" > "$LAN_LOG" 2>&1 &
+LAN_PID=$!
+LAN_PORT=""
+for i in $(seq 1 40); do
+  LAN_PORT="$(grep -o '127\.0\.0\.1:[0-9]*' "$LAN_LOG" | head -1 | cut -d: -f2)"
+  [ -n "$LAN_PORT" ] && break
+  sleep 0.2
+done
+grep -q '手机地址' "$LAN_LOG"; check "局域网模式打印手机地址" $?
+CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$LAN_PORT/")
+[ "$CODE" = "200" ]; check "局域网模式页面可访问（$CODE）" $?
+disown "$LAN_PID" 2>/dev/null
+kill "$LAN_PID" 2>/dev/null
+wait "$LAN_PID" 2>/dev/null
+rm -rf "$LAN_DATA" "$LAN_LOG"
+
 echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "数据服务测试未通过"
