@@ -5,6 +5,7 @@
    ========================================================= */
 
 const WEATHER_CACHE_KEY = 'xya.weather.shantou.v1';
+const HOME_WEATHER_REFRESH_MS = 10 * 60 * 1000;
 const WEATHER_URL =
   'https://api.open-meteo.com/v1/forecast?latitude=23.354&longitude=116.682' +
   '&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m' +
@@ -102,7 +103,9 @@ function homeMiniCard(modId, main, sub) {
 
 Pages.home = {
   _timer: null,
+  _weatherTimer: null,
   _weatherLoading: false,
+  weatherInterval: HOME_WEATHER_REFRESH_MS,
 
   render(el) {
     const d = Store.data;
@@ -288,6 +291,7 @@ Pages.home = {
 
     this.startClock(el);
     this.loadWeather(el);
+    this.startWeatherAuto(el);
 
     const memoForm = el.querySelector('#memo-add');
     memoForm.addEventListener('submit', (e) => {
@@ -320,6 +324,24 @@ Pages.home = {
     };
     tick();
     this._timer = setInterval(tick, 1000);
+  },
+
+  startWeatherAuto(el) {
+    this.stopWeatherAuto();
+    const box = el.querySelector('#home-weather');
+    if (!box) return;
+    this._weatherTimer = setInterval(() => {
+      if (!document.body.contains(box)) {
+        Pages.home.stopWeatherAuto();
+        return;
+      }
+      Pages.home.loadWeather(el, true);
+    }, this.weatherInterval);
+  },
+
+  stopWeatherAuto() {
+    if (this._weatherTimer) clearInterval(this._weatherTimer);
+    this._weatherTimer = null;
   },
 
   loadWeather(el, force) {

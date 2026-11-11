@@ -1292,6 +1292,38 @@ test('P24 蛋白质目标可以保存', async () => {
   includes(document.querySelector('.protein-card').textContent, '150', '页面更新');
 });
 
+/* ---------------- P25 天气自动刷新 ---------------- */
+
+test('P25 天气会自动刷新，不用手动点', async () => {
+  resetData();
+  App.render();
+  assert(Pages.home._weatherTimer, '首页应启动自动刷新定时器');
+  const realFetch = window.fetch;
+  let calls = 0;
+  window.fetch = () => {
+    calls++;
+    return Promise.resolve({
+      ok: true,
+      json: () => ({
+        current: { temperature_2m: 20, apparent_temperature: 19, relative_humidity_2m: 50, wind_speed_10m: 5, weather_code: 0 },
+        daily: { temperature_2m_max: [24], temperature_2m_min: [16] },
+      }),
+    });
+  };
+  try {
+    localStorage.removeItem(WEATHER_CACHE_KEY);
+    Pages.home.weatherInterval = 40;
+    Pages.home.startWeatherAuto(document.querySelector('#main'));
+    await tick(160);
+    assert(calls >= 2, '定时器应重复刷新天气：' + calls);
+    includes(document.querySelector('#weather-temp').textContent, '20', '自动刷新后温度');
+  } finally {
+    Pages.home.stopWeatherAuto();
+    Pages.home.weatherInterval = HOME_WEATHER_REFRESH_MS;
+    window.fetch = realFetch;
+  }
+});
+
 /* ---------------- 运行 ---------------- */
 
 (async function runAll() {
