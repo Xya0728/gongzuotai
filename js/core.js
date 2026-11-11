@@ -95,25 +95,6 @@ const MEALS = [
 
 const BODY_PARTS = ['胸', '背', '肩', '腿', '臀', '手臂', '核心', '有氧', '全身'];
 
-/* 智能排程默认偏好（可在今日计划右上角齿轮里改） */
-const SCHEDULE_DEFAULTS = {
-  enabled: true,
-  wake: '07:30',
-  sleep: '23:30',
-  lunchStart: '12:00',
-  lunchEnd: '13:00',
-  dinnerStart: '18:00',
-  dinnerEnd: '19:00',
-  focusMin: 50,
-  breakMin: 10,
-  gymPerWeek: 3,
-  entertainmentMin: 60,
-  fixed: [],
-};
-
-function scheduleDefaults() {
-  return JSON.parse(JSON.stringify(SCHEDULE_DEFAULTS));
-}
 
 /* =========================================================
    工具函数
@@ -367,7 +348,6 @@ function defaultData() {
       calorieGoal: 2000,
       proteinGoal: 0,
       hidden: [],
-      schedule: scheduleDefaults(),
     },
     memos: [],
     plan: { items: [], drafts: {} },
