@@ -70,6 +70,19 @@ def build_handler(store):
             kwargs["directory"] = ROOT
             SimpleHTTPRequestHandler.__init__(self, *args, **kwargs)
 
+        def guess_type(self, path):
+            base = super().guess_type(path).split(";")[0].strip()
+            if base in (
+                "text/html",
+                "text/css",
+                "text/javascript",
+                "application/javascript",
+                "application/json",
+                "application/manifest+json",
+            ):
+                return base + "; charset=utf-8"
+            return base
+
         def log_message(self, fmt, *args):
             # 安静模式：只在出错时输出
             pass

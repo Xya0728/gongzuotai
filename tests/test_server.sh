@@ -63,6 +63,9 @@ echo "$CC" | grep -q 'no-store'; check "静态资源不缓存（$CC）" $?
 CC_HTML=$(curl -sI "http://127.0.0.1:$PORT/" | tr -d '\r' | awk -F': ' 'tolower($1)=="cache-control"{print $2}')
 echo "$CC_HTML" | grep -q 'no-store'; check "首页不缓存（$CC_HTML）" $?
 
+CT_HTML=$(curl -sI "http://127.0.0.1:$PORT/index.html" | tr -d '\r' | awk -F': ' 'tolower($1)=="content-type"{print $2}')
+echo "$CT_HTML" | grep -q 'charset=utf-8'; check "HTML 带 UTF-8 声明（$CT_HTML）" $?
+
 curl -s "http://127.0.0.1:$PORT/manifest.webmanifest" | grep -q '"display": "standalone"'; check "PWA manifest 可访问" $?
 curl -s "http://127.0.0.1:$PORT/sw.js" | grep -q "xya-shell-"; check "Service Worker 已提供" $?
 CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/icons/icon-180.png")

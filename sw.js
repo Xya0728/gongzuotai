@@ -4,8 +4,8 @@
    导航请求优先走网络；静态资源缓存优先并后台更新；
    /api/ 数据接口从不缓存，避免把私人数据写进 Cache Storage。 */
 
-const VERSION = '2026.11.11-4';
-const ASSETS_VERSION = '20261111-4';
+const VERSION = '2026.11.11-5';
+const ASSETS_VERSION = '20261111-5';
 const CACHE = 'xya-shell-' + VERSION;
 
 const ASSETS = [
