@@ -2122,3 +2122,198 @@ body.modal-open { overflow: hidden; }
 }
 .day-plan.is-rest .day-plan-head b { color: #1d4ed8; }
 .rest-detail { font-size: 12px; line-height: 1.7; color: var(--muted); }
+
+/* ---------------- 手机布局 / 底部标签 ---------------- */
+
+.mobile-nav { display: none; }
+#sheet-root { display: contents; }
+
+@media (max-width: 760px) {
+  .sidebar { display: none !important; }
+  .app { display: block; }
+  .main {
+    max-width: none;
+    padding: calc(16px + env(safe-area-inset-top)) 14px calc(104px + env(safe-area-inset-bottom));
+  }
+
+  .mobile-nav {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    z-index: 80;
+    display: flex;
+    align-items: stretch;
+    gap: 2px;
+    height: 64px;
+    padding: 7px 8px 6px;
+    border-radius: 22px;
+    border: 1px solid rgba(255, 255, 255, 0.86);
+    background: rgba(255, 255, 255, 0.78);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    box-shadow:
+      0 20px 40px -24px rgba(15, 23, 42, 0.55),
+      inset 0 1px 0 #fff;
+  }
+  .mnav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 0;
+    border: 0;
+    border-radius: 15px;
+    background: transparent;
+    color: #8b93a1;
+    font: inherit;
+    font-size: 9.5px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .mnav-item .ic { width: 20px; height: 20px; }
+  .mnav-item.on { color: var(--accent); font-weight: 650; background: var(--accent-soft); }
+
+  .page-head { gap: 10px; margin-bottom: 14px; }
+  .page-head h1 { font-size: 23px; }
+  .page-desc { font-size: 11.5px; }
+  .head-actions { width: 100%; flex-wrap: wrap; gap: 8px; }
+  .head-actions .month-nav { flex: 0 1 auto; }
+  .head-actions .btn.primary { flex: 1; }
+
+  .grid { gap: 12px; }
+  .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-3, .grid-2 { grid-template-columns: 1fr; }
+  .stack { gap: 12px; }
+  .card { padding: 16px; border-radius: 20px; }
+  .stat { padding: 13px 14px; border-radius: 17px; }
+  .summary-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%; }
+  .summary-cell .k { font-size: 19px; }
+  .summary-cell .k small { font-size: 10px; }
+  .summary-cell .m { font-size: 10px; white-space: nowrap; }
+  .summary-right { display: none; }
+
+  .home-hero { padding: 20px; border-radius: 22px; }
+  .hero-clock { font-size: 64px; }
+  .hero-clock small { font-size: 19px; }
+  .home-weather { padding: 14px; }
+  .weather-main b { font-size: 36px; }
+
+  .plan-toolbar { gap: 8px; }
+  .plan-toolbar .view-toggle { flex: 0 0 auto; }
+  .plan-actions { width: 100%; justify-content: flex-end; }
+  .timeline { margin-top: 6px; }
+  .tl-track { margin-left: 44px; }
+  .tl-hour { width: 40px; }
+  .tl-hour span { font-size: 9.5px; }
+  .tl-block { padding: 3px 6px 2px; }
+  .tl-time { font-size: 8.5px; }
+  .tl-name { font-size: 10.5px; }
+  .palette-grid { grid-template-columns: 1fr 1fr; }
+  .palette-item { padding: 8px; }
+  .palette-body b { font-size: 11px; }
+  .palette-body span { font-size: 9.5px; }
+
+  .week-grid { gap: 6px; scroll-snap-type: x proximity; }
+  .week-day { min-width: 132px; scroll-snap-align: start; }
+  .week-day .wd-head b { font-size: 11px; }
+
+  .diet-macros { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .diet-macros .card { padding: 12px; }
+  .macro-value { font-size: 21px; }
+  .macro-value small { font-size: 10px; }
+  .macro-meals { gap: 6px; font-size: 9px; }
+  .macro-foot { font-size: 9.5px; }
+  .calorie-card .chip, .protein-card .chip { font-size: 9px; height: 19px; padding: 0 6px; }
+
+  .money-hero { gap: 16px; padding: 14px; }
+  .money-hero-month b { font-size: 36px; }
+  .money-hero-metrics { gap: 18px; }
+  .money-hero-metrics b { font-size: 15px; }
+  .budget-body { gap: 14px; }
+  .budget-ring { width: 92px; height: 92px; flex-basis: 92px; }
+  .budget-ring-in { width: 70px; height: 70px; }
+  .budget-ring-in b { font-size: 16px; }
+  .asset-sums { gap: 16px; }
+  .asset-sums b { font-size: 17px; }
+
+  .kanban, .kanban-5, .device-grid { grid-template-columns: 1fr; }
+  .week-grid, .tpl-scroll { -webkit-overflow-scrolling: touch; }
+
+  .overlay {
+    padding: 0;
+    align-items: flex-end;
+    justify-content: stretch;
+  }
+  .modal {
+    width: 100%;
+    max-width: none;
+    max-height: 92vh;
+    margin: 0;
+    border-radius: 26px 26px 0 0;
+    border-bottom: 0;
+    animation: sheet-in 0.24s cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  .modal.small, .modal.wide { max-width: none; }
+  .modal-body { max-height: 68vh; overflow-y: auto; }
+  .modal-head { padding-top: 18px; }
+  .modal-foot { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+
+  .toast-root { bottom: calc(94px + env(safe-area-inset-bottom)); }
+
+  body.sheet-open { overflow: hidden; }
+  .sheet-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(17, 24, 39, 0.3);
+    backdrop-filter: blur(8px);
+  }
+  .sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 210;
+    padding: 8px 18px calc(24px + env(safe-area-inset-bottom));
+    border-radius: 26px 26px 0 0;
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    border-bottom: 0;
+    background: linear-gradient(165deg, rgba(255, 255, 255, 0.97), rgba(255, 255, 255, 0.9));
+    box-shadow: 0 -30px 60px -30px rgba(15, 23, 42, 0.55);
+    animation: sheet-in 0.24s cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  .sheet-grab {
+    width: 38px;
+    height: 5px;
+    margin: 0 auto 12px;
+    border-radius: 99px;
+    background: rgba(24, 33, 50, 0.16);
+  }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .sheet-head h3 { font-size: 17px; font-weight: 650; }
+  .sheet-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .sheet-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 7px;
+    padding: 14px 6px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.66);
+    color: var(--ink);
+    font-size: 11px;
+    font-weight: 550;
+  }
+  .sheet-item .mini-ico { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; }
+  .sheet-item .ic { width: 18px; height: 18px; }
+  .sheet-foot { margin-top: 14px; text-align: center; }
+}
+
+@keyframes sheet-in {
+  from { transform: translateY(28px); opacity: 0.6; }
+  to { transform: translateY(0); opacity: 1; }
+}

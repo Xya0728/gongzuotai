@@ -88,12 +88,21 @@ PROFILE2="$WORK/profile2"
 parse "$WORK/dump2.html" "数据文件模式"
 RESULT2=$?
 
-# ---------- 3. 数据服务接口测试 ----------
+# ---------- 3. 手机布局（390×844） ----------
+PROFILE3="$WORK/profile3"
+URL3="file://$("$PYTHON" -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$ROOT/tests/mobile-frame.html")"
+"$CHROME" --headless=new --disable-gpu --no-sandbox \
+  --user-data-dir="$PROFILE3" --window-size=430,900 \
+  --virtual-time-budget=15000 --dump-dom "$URL3" > "$WORK/dump3.html" 2>/dev/null
+parse "$WORK/dump3.html" "手机布局"
+RESULT_M=$?
+
+# ---------- 4. 数据服务接口测试 ----------
 bash "$ROOT/tests/test_server.sh"
 RESULT3=$?
 
 echo ""
-if [ "$RESULT1" -ne 0 ] || [ "$RESULT2" -ne 0 ] || [ "$RESULT3" -ne 0 ]; then
+if [ "$RESULT1" -ne 0 ] || [ "$RESULT2" -ne 0 ] || [ "$RESULT_M" -ne 0 ] || [ "$RESULT3" -ne 0 ]; then
   echo "存在未通过的测试"
   exit 1
 fi

@@ -12,10 +12,29 @@ const App = {
   init() {
     Store.load();
 
+    if ('serviceWorker' in navigator) {
+      const secure =
+        location.protocol === 'https:' ||
+        location.hostname === 'localhost' ||
+        location.hostname === '127.0.0.1';
+      if (secure) {
+        navigator.serviceWorker.register('./sw.js').catch(() => {
+          /* 离线外壳不可用时不影响正常使用 */
+        });
+      }
+    }
+
     if (!location.hash) {
       location.replace('#/home');
     }
     window.addEventListener('hashchange', () => this.handleHash());
+    const reconnect = () => {
+      if (Store.serverChecked && Store.mode === 'local') Store.connectServer();
+    };
+    window.addEventListener('online', reconnect);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reconnect();
+    });
     document.addEventListener('keydown', (event) => {
       if ((event.metaKey || event.ctrlKey) && String(event.key).toLowerCase() === 's') {
         event.preventDefault();
@@ -31,6 +50,7 @@ const App = {
   },
 
   handleHash() {
+    this.closeMoreSheet();
     const raw = (location.hash || '#/home').replace(/^#\/?/, '') || 'home';
     const visible = this.visibleModules();
     const target = Pages[raw] && visible.some((m) => m.id === raw) ? raw : 'home';
@@ -72,6 +92,7 @@ const App = {
 
     main.scrollTop = scrollY;
     this.renderSidebar();
+    this.renderMobileNav();
     document.title = mod.name + ' · Xya的工作台';
 
     if (!Store.ok) {
@@ -79,6 +100,16 @@ const App = {
         'afterbegin',
         '<div class="hint-bar" style="background:#fdeaea;border-color:#f3c2c2;color:#b91c1c;margin-bottom:16px">' +
           '这个浏览器禁止了本地存储，数据无法保存。请改用 Chrome 或 Edge 打开 index.html。</div>'
+      );
+    } else if (
+      Store.serverChecked &&
+      Store.mode === 'local' &&
+      (location.protocol === 'https:' || location.protocol === 'http:')
+    ) {
+      main.insertAdjacentHTML(
+        'afterbegin',
+        '<div class="hint-bar" style="background:#fff7ed;border-color:#fed7aa;color:#9a3412;margin-bottom:16px">' +
+          '离线模式：现在连不上 Mac。修改会先保存在这台设备，连上 Mac 后按时间自动同步。</div>'
       );
     }
   },
@@ -120,6 +151,74 @@ const App = {
 
     const saveBtn = sidebar.querySelector('#save-now');
     if (saveBtn) saveBtn.addEventListener('click', manualSave);
+  },
+
+  mobileTabs() {
+    return [
+      { route: 'home', label: '首页', icon: 'home' },
+      { route: 'plan', label: '计划', icon: 'calendar' },
+      { route: 'fitness', label: '健身', icon: 'dumbbell' },
+      { route: 'diet', label: '饮食', icon: 'bowl' },
+    ];
+  },
+
+  renderMobileNav() {
+    const nav = document.getElementById('mobile-nav');
+    if (!nav) return;
+    const tabs = this.mobileTabs();
+    const ids = tabs.map((t) => t.route);
+    const moreOn = ids.indexOf(this.route) === -1;
+    nav.innerHTML =
+      tabs
+        .map(
+          (t) =>
+            '<button type="button" class="mnav-item' + (this.route === t.route ? ' on' : '') + '" data-route="' + t.route + '">' +
+            icon(t.icon) + '<span>' + esc(t.label) + '</span></button>'
+        )
+        .join('') +
+      '<button type="button" class="mnav-item' + (moreOn ? ' on' : '') + '" data-more="1">' +
+      icon('dots') + '<span>更多</span></button>';
+
+    nav.querySelectorAll('[data-route]').forEach((btn) => {
+      btn.addEventListener('click', () => this.go(btn.dataset.route));
+    });
+    const more = nav.querySelector('[data-more]');
+    if (more) more.addEventListener('click', () => this.openMoreSheet());
+  },
+
+  openMoreSheet() {
+    const root = document.getElementById('sheet-root');
+    if (!root) return;
+    const skip = ['home', 'plan', 'fitness', 'diet'];
+    const items = this.visibleModules().filter((m) => skip.indexOf(m.id) === -1);
+    root.innerHTML =
+      '<div class="sheet-overlay" data-close-sheet></div>' +
+      '<div class="sheet" role="dialog" aria-modal="true" aria-label="更多模块">' +
+      '<div class="sheet-grab"></div>' +
+      '<div class="sheet-head"><h3>更多模块</h3>' +
+      '<button type="button" class="icon-btn" data-close-sheet aria-label="关闭">' + icon('x') + '</button></div>' +
+      '<div class="sheet-grid">' +
+      items
+        .map(
+          (m) =>
+            '<a class="sheet-item" href="#/' + m.id + '">' +
+            '<span class="mini-ico" style="background:' + m.soft + ';color:' + m.color + '">' + icon(m.icon) + '</span>' +
+            '<span>' + esc(m.name) + '</span></a>'
+        )
+        .join('') +
+      '</div>' +
+      '<div class="sheet-foot tiny muted">Xya 的工作台 · v' + APP_VERSION + '</div>' +
+      '</div>';
+    root.querySelectorAll('[data-close-sheet]').forEach((el) => {
+      el.addEventListener('click', () => this.closeMoreSheet());
+    });
+    document.body.classList.add('sheet-open');
+  },
+
+  closeMoreSheet() {
+    const root = document.getElementById('sheet-root');
+    if (root) root.innerHTML = '';
+    document.body.classList.remove('sheet-open');
   },
 };
 

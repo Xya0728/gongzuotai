@@ -59,6 +59,13 @@ class DataStore(object):
 
 def build_handler(store):
     class Handler(SimpleHTTPRequestHandler):
+        extensions_map = {
+            **SimpleHTTPRequestHandler.extensions_map,
+            ".webmanifest": "application/manifest+json; charset=utf-8",
+            ".png": "image/png",
+            ".svg": "image/svg+xml",
+        }
+
         def __init__(self, *args, **kwargs):
             kwargs["directory"] = ROOT
             SimpleHTTPRequestHandler.__init__(self, *args, **kwargs)

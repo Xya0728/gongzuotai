@@ -63,6 +63,15 @@ echo "$CC" | grep -q 'no-store'; check "静态资源不缓存（$CC）" $?
 CC_HTML=$(curl -sI "http://127.0.0.1:$PORT/" | tr -d '\r' | awk -F': ' 'tolower($1)=="cache-control"{print $2}')
 echo "$CC_HTML" | grep -q 'no-store'; check "首页不缓存（$CC_HTML）" $?
 
+curl -s "http://127.0.0.1:$PORT/manifest.webmanifest" | grep -q '"display": "standalone"'; check "PWA manifest 可访问" $?
+curl -s "http://127.0.0.1:$PORT/sw.js" | grep -q "xya-shell-"; check "Service Worker 已提供" $?
+CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/icons/icon-180.png")
+[ "$CODE" = "200" ]; check "iPhone 图标可访问（$CODE）" $?
+curl -s "http://127.0.0.1:$PORT/" | grep -q 'rel="manifest"'; check "首页声明 manifest" $?
+curl -s "http://127.0.0.1:$PORT/" | grep -q 'apple-mobile-web-app-capable'; check "iOS 全屏 meta" $?
+CT=$(curl -sI "http://127.0.0.1:$PORT/manifest.webmanifest" | tr -d '\r' | awk -F': ' 'tolower($1)=="content-type"{print $2}')
+echo "$CT" | grep -q 'manifest+json'; check "manifest MIME（$CT）" $?
+
 curl -s -X PUT -H 'Content-Type: application/json' \
   -d '{"data":{"version":1,"memos":[{"id":"t1","text":"file-test"}]}}' \
   "http://127.0.0.1:$PORT/api/state" > /dev/null

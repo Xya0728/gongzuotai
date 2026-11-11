@@ -1282,6 +1282,26 @@ test('P28 旧排程偏好会迁移到计划偏好', async () => {
   eq(p.fixed.length, 1, '沿用旧固定安排');
 });
 
+/* ---------------- P30 离线同步 ---------------- */
+
+test('P30 离线修改会标记待同步，并能判断新旧', async () => {
+  resetData();
+  Store.serverChecked = true;
+  Store.mode = 'local';
+  Store.data.memos.push({ id: 'offline1', text: '离线改的', createdAt: Date.now(), date: todayKey() });
+  Store.save();
+  assert(Store.offlineDirty, '离线保存应标记待同步');
+  eq(localStorage.getItem(DB_KEY + '.dirty'), '1', 'localStorage 标记');
+  includes(saveStateText(), '离线保存', '侧栏状态');
+  assert(Store.localIsNewer(Date.now() - 20000), '本地较新时应优先同步本地');
+  assert(!Store.localIsNewer(Date.now() + 20000), '服务端较新时不应覆盖');
+  Store.clearOfflineDirty();
+  assert(!Store.offlineDirty, '清除标记');
+  eq(localStorage.getItem(DB_KEY + '.dirty'), null, 'localStorage 标记清除');
+  Store.serverChecked = false;
+  Store.mode = 'local';
+});
+
 /* ---------------- 运行 ---------------- */
 
 (async function runAll() {

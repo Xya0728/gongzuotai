@@ -5,7 +5,7 @@
    ========================================================= */
 
 const DB_KEY = 'xya.life.v1';
-const APP_VERSION = '2026.11.11-2';
+const APP_VERSION = '2026.11.11-4';
 const WEEK_CN = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
 /** 各页面渲染器：js/pages/*.js 在此注册 */
@@ -64,6 +64,7 @@ const ICONS = {
   cloud: '<path d="M7 18.5h10a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 8 9.7 4.4 4.4 0 0 0 7 18.5z"/>',
   rain: '<path d="M7 15.5h10a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 8 6.7 4.4 4.4 0 0 0 7 15.5z"/><path d="M8.5 18.5 7.8 21M12 18.5 11.3 21M15.5 18.5l-.7 2.5"/>',
   coffee: '<path d="M6 8h12v6a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5z"/><path d="M18 9h1.4a2.6 2.6 0 0 1 0 5.2H18M4 21h16M9 3.5v2M13 3.5v2"/>',
+  dots: '<circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/>',
 };
 
 const PRIORITIES = [
@@ -446,6 +447,9 @@ const Store = {
   serverPath: '',
   saveState: 'idle',
   serverTimer: null,
+  serverChecked: false,
+  offlineDirty: false,
+  lastLocalSaveAt: 0,
 
   load() {
     let raw = null;
@@ -463,6 +467,12 @@ const Store = {
       }
     }
     this.data = mergeDeep(defaultData(), saved && typeof saved === 'object' ? saved : {});
+    try {
+      this.offlineDirty = localStorage.getItem(DB_KEY + '.dirty') === '1';
+      this.lastLocalSaveAt = Number(localStorage.getItem(DB_KEY + '.savedAt')) || 0;
+    } catch (err) {
+      /* ignore */
+    }
     if (!this.ok) return;
     if (saved) this.lastSavedAt = new Date();
     if (!raw) this.save();
@@ -472,6 +482,8 @@ const Store = {
   persistLocal() {
     try {
       localStorage.setItem(DB_KEY, JSON.stringify(this.data));
+      this.lastLocalSaveAt = Date.now();
+      localStorage.setItem(DB_KEY + '.savedAt', String(this.lastLocalSaveAt));
       return true;
     } catch (err) {
       this.ok = false;
@@ -480,11 +492,38 @@ const Store = {
     }
   },
 
+  markOfflineDirty() {
+    if (this.offlineDirty) return;
+    this.offlineDirty = true;
+    try {
+      localStorage.setItem(DB_KEY + '.dirty', '1');
+    } catch (err) {
+      /* ignore */
+    }
+    updateSaveState();
+  },
+
+  clearOfflineDirty() {
+    this.offlineDirty = false;
+    try {
+      localStorage.removeItem(DB_KEY + '.dirty');
+    } catch (err) {
+      /* ignore */
+    }
+    updateSaveState();
+  },
+
+  localIsNewer(serverSavedAt) {
+    return !!this.offlineDirty && this.lastLocalSaveAt > (Number(serverSavedAt) || 0) + 1500;
+  },
+
   save() {
     if (!this.ok) return false;
     const ok = this.persistLocal();
     this.lastSavedAt = new Date();
-    this.queueServerSave();
+    if (this.mode === 'server') this.queueServerSave();
+    else this.saveState = 'saved';
+    if (this.serverChecked && this.mode !== 'server') this.markOfflineDirty();
     updateSaveState();
     return ok;
   },
@@ -512,10 +551,12 @@ const Store = {
       if (!payload || !payload.ok) throw new Error('保存被拒绝');
       this.lastSavedAt = payload.savedAt ? new Date(payload.savedAt) : new Date();
       this.saveState = 'saved';
+      this.clearOfflineDirty();
       updateSaveState();
       return true;
     } catch (err) {
       this.saveState = 'error';
+      if (this.serverChecked) this.markOfflineDirty();
       updateSaveState();
       return false;
     }
@@ -530,10 +571,12 @@ const Store = {
   },
 
   async connectServer() {
+    if (this._connecting) return;
     if (location.protocol !== 'http:' && location.protocol !== 'https:') {
       window.__APP_READY = true;
       return;
     }
+    this._connecting = true;
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timer = setTimeout(() => {
       if (controller) controller.abort();
@@ -545,22 +588,39 @@ const Store = {
       if (!payload || !payload.ok) throw new Error('数据服务不可用');
       this.mode = 'server';
       this.serverPath = payload.path || '';
-      if (payload.data && typeof payload.data === 'object') {
+      this.serverChecked = true;
+      const serverSavedAt = payload.savedAt || 0;
+      let didPush = false;
+      if (this.localIsNewer(serverSavedAt)) {
+        const pushed = await this.pushToServer();
+        if (pushed) {
+          didPush = true;
+          toast('已把离线修改同步到 Mac');
+        } else {
+          this.mode = 'local';
+          this.saveState = 'error';
+        }
+      } else if (payload.data && typeof payload.data === 'object') {
+        const hadDirty = this.offlineDirty;
         this.data = mergeDeep(defaultData(), payload.data);
-          } else {
+        this.clearOfflineDirty();
+        if (hadDirty) toast('已使用 Mac 上的较新数据，覆盖本机离线修改');
+      } else {
         await this.pushToServer();
       }
-      this.lastSavedAt = payload.savedAt ? new Date(payload.savedAt) : new Date();
-      this.saveState = 'saved';
+      this.lastSavedAt = didPush ? new Date() : payload.savedAt ? new Date(payload.savedAt) : new Date();
+      if (this.mode === 'server') this.saveState = 'saved';
       this.persistLocal();
       window.__APP_READY = true;
       if (typeof App !== 'undefined') App.refresh();
     } catch (err) {
       this.mode = 'local';
       this.serverPath = '';
+      this.serverChecked = true;
       window.__APP_READY = true;
       if (typeof App !== 'undefined') App.refresh();
     } finally {
+      this._connecting = false;
       clearTimeout(timer);
     }
   },
@@ -578,6 +638,13 @@ const Store = {
 
   reset() {
     this.data = defaultData();
+    this.offlineDirty = false;
+    this.serverChecked = false;
+    try {
+      localStorage.removeItem(DB_KEY + '.dirty');
+    } catch (err) {
+      /* ignore */
+    }
     this.save();
   },
 };
@@ -904,7 +971,10 @@ function saveClock(d) {
 
 function saveStateText() {
   if (Store.saveState === 'saving') return '保存中…';
-  if (Store.saveState === 'error') return '保存失败';
+  const offline = Store.serverChecked && Store.mode === 'local';
+  if (Store.saveState === 'error' || (offline && Store.offlineDirty)) {
+    return '离线保存' + (Store.lastSavedAt ? ' · ' + saveClock(Store.lastSavedAt) : '');
+  }
   if (!Store.lastSavedAt) return '等待保存';
   return (Store.mode === 'server' ? '已保存到文件 ' : '已保存 ') + saveClock(Store.lastSavedAt);
 }
@@ -920,7 +990,9 @@ async function manualSave() {
     toast('保存失败，请检查数据服务', 'err');
     return;
   }
-  toast(Store.mode === 'server' ? '已保存到数据文件' : '已保存 · ' + saveClock(new Date()));
+  if (Store.mode === 'server') toast('已保存到数据文件');
+  else if (Store.serverChecked) toast('已保存在本机，连上 Mac 后会自动同步');
+  else toast('已保存 · ' + saveClock(new Date()));
 }
 
 /* ---------- 小工具 ---------- */
