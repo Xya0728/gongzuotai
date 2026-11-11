@@ -811,7 +811,8 @@ test('P19 顶部操作栏更紧凑，长按空白时间段加计划', async () =
   showPage('plan');
   const actions = document.querySelector('.plan-actions');
   assert(actions, '应有顶部操作栏');
-  eq(actions.querySelectorAll('[data-act]').length, 1, '操作栏只保留添加计划');
+  eq(actions.querySelectorAll('[data-act]').length, 2, '计划偏好 + 添加计划');
+  assert(actions.querySelector('[data-act="prefs"]'), '应保留计划偏好入口');
   const headings = Array.prototype.map.call(document.querySelectorAll('.card h2'), (h) => h.textContent);
   assert(headings.indexOf('未排时间') === -1, '不应再有未排时间那一栏');
   assert(mainText().indexOf('智能排程') === -1, '智能排程已移除');
@@ -1215,6 +1216,70 @@ test('P27 新增常吃食物可以选小细节并影响热量', async () => {
   eq(item.detail, '去皮', '拖拽带上小细节');
   eq(item.calories, 166, '拖拽带上热量');
   includes(document.querySelector('.meal[data-meal="lunch"]').textContent, '去皮', '餐次显示小细节');
+});
+
+/* ---------------- P28 计划偏好 ---------------- */
+
+test('P28 今日计划保留计划偏好设置', async () => {
+  resetData();
+  const t = todayKey();
+  Pages.plan.date = t;
+  Pages.plan.view = 'timeline';
+  showPage('plan');
+  const gear = document.querySelector('[data-act="prefs"]');
+  assert(gear, '应有计划偏好入口');
+  gear.click();
+  await tick(180);
+  includes(document.querySelector('#modal-root .modal-head h3').textContent, '计划偏好');
+  const form = document.querySelector('#modal-root form');
+  form.elements.wake.value = '08:00';
+  form.elements.sleep.value = '22:00';
+  form.elements.focusMin.value = '80';
+  document.querySelector('[data-add-fixed]').click();
+  const rows = form.querySelectorAll('[data-fixed-row]');
+  const row = rows[rows.length - 1];
+  row.querySelector('[name="fixedStart"]').value = '09:00';
+  row.querySelector('[name="fixedEnd"]').value = '11:00';
+  row.querySelector('[name="fixedLabel"]').value = '开会';
+  form.requestSubmit();
+  await tick(250);
+
+  const prefs = Store.data.settings.planPrefs;
+  assert(prefs, '应保存计划偏好');
+  eq(prefs.wake, '08:00', '起床时间');
+  eq(prefs.sleep, '22:00', '睡觉时间');
+  eq(prefs.focusMin, 80, '专注时长');
+  eq(prefs.fixed.length, 1, '固定安排数量');
+  eq(prefs.fixed[0].label, '开会', '固定安排名称');
+  eq(document.querySelector('.tl-hour span').textContent, '08:00', '时间轴从起床时间开始');
+  const fixedText = Array.prototype.map
+    .call(document.querySelectorAll('.tl-block.is-fixed'), (el) => el.textContent)
+    .join('|');
+  includes(fixedText, '开会', '时间轴显示固定安排');
+
+  Store.data.study.goals = [{ id: 'g28', title: '读书', category: '书籍' }];
+  Store.save();
+  Pages.plan.paletteTab = 'study';
+  App.refresh();
+  const card = document.querySelector('.palette-item[draggable="true"]');
+  const payload = JSON.parse(card.dataset.payload);
+  eq(payload.duration, 80, '学习模块默认时长跟随专注时长');
+});
+
+test('P28 旧排程偏好会迁移到计划偏好', async () => {
+  resetData();
+  delete Store.data.settings.planPrefs;
+  Store.data.settings.schedule = {
+    wake: '06:30',
+    sleep: '22:30',
+    focusMin: 60,
+    fixed: [{ start: '09:00', end: '10:00', label: '早会' }],
+  };
+  const p = planPrefs();
+  eq(p.wake, '06:30', '沿用旧起床时间');
+  eq(p.sleep, '22:30', '沿用旧睡觉时间');
+  eq(p.focusMin, 60, '沿用旧专注时长');
+  eq(p.fixed.length, 1, '沿用旧固定安排');
 });
 
 /* ---------------- 运行 ---------------- */

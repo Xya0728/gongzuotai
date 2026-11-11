@@ -4,6 +4,38 @@
    今日计划 · 日程表 / 清单 / 模块拖拽
    ========================================================= */
 
+const PLAN_PREF_DEFAULTS = {
+  wake: '07:30',
+  sleep: '23:30',
+  lunchStart: '12:00',
+  lunchEnd: '13:00',
+  dinnerStart: '18:00',
+  dinnerEnd: '19:00',
+  focusMin: 50,
+  fixed: [],
+};
+
+/* 计划偏好：时间轴范围、用餐时段、固定安排 */
+function planPrefs() {
+  const s = Store.data.settings;
+  if (!s.planPrefs) {
+    const old = s.schedule || {};
+    s.planPrefs = {
+      wake: old.wake || PLAN_PREF_DEFAULTS.wake,
+      sleep: old.sleep || PLAN_PREF_DEFAULTS.sleep,
+      lunchStart: old.lunchStart || PLAN_PREF_DEFAULTS.lunchStart,
+      lunchEnd: old.lunchEnd || PLAN_PREF_DEFAULTS.lunchEnd,
+      dinnerStart: old.dinnerStart || PLAN_PREF_DEFAULTS.dinnerStart,
+      dinnerEnd: old.dinnerEnd || PLAN_PREF_DEFAULTS.dinnerEnd,
+      focusMin: Number(old.focusMin) || PLAN_PREF_DEFAULTS.focusMin,
+      fixed: Array.isArray(old.fixed) ? old.fixed.slice() : [],
+    };
+  }
+  const p = s.planPrefs;
+  if (!Array.isArray(p.fixed)) p.fixed = [];
+  return p;
+}
+
 Pages.plan = {
   date: todayKey(),
   view: 'timeline',
@@ -35,6 +67,8 @@ Pages.plan = {
           (isToday ? '' : '<button class="btn sm" data-act="today">回到今天</button>') +
           '</div>' +
           '<div class="plan-actions">' +
+          '<button class="plan-icon" data-act="prefs" aria-label="计划偏好" title="计划偏好">' + icon('sliders') + '</button>' +
+          '<span class="plan-actions-sep"></span>' +
           '<button class="btn primary sm" data-act="add">' + icon('plus') + '添加计划</button>' +
           '</div>'
       ) +
@@ -87,6 +121,9 @@ Pages.plan = {
       paletteTab(node) {
         Pages.plan.paletteTab = node.dataset.tab;
         App.refresh();
+      },
+      prefs() {
+        openPlanPrefsModal();
       },
       paletteAdd(node) {
         if (Date.now() - (Pages.plan._dragAt || 0) < 400) return;
@@ -235,7 +272,7 @@ Pages.plan = {
       (showNow
         ? '<div class="tl-now" style="top:' + ((nowMin - dayStart) / 60) * HOUR + 'px"><span>现在</span></div>'
         : '') +
-      fixed.map((b) => block({ kind: 'fixed', title: b.label, startMin: b.startMin, endMin: b.endMin })).join('') +
+      fixed.map((b) => block({ kind: 'fixed', title: b.label || b.title, startMin: b.startMin, endMin: b.endMin })).join('') +
       moving.map(block).join('') +
       (!moving.length && !fixed.length
         ? '<div class="tl-empty tiny muted">今天还是空的，长按空白时间段，或从底部拖一个模块进来</div>'
@@ -355,7 +392,7 @@ Pages.plan = {
         module: 'study',
         payload: {
           title: '学习 · ' + g.title,
-          duration: 50,
+          duration: planPrefs().focusMin,
           module: 'study',
           priority: days !== null && days <= 3 ? 'high' : 'mid',
         },
@@ -571,8 +608,15 @@ function addPalettePlan(date, payload, startMin, bounds) {
 
 /* 时间轴范围：默认 07:00–23:30，手动排到范围外的计划也能显示 */
 function planTimelineBounds(items) {
-  let start = 7 * 60;
-  let end = 23 * 60 + 30;
+  const prefs = planPrefs();
+  let start = timeToMin(prefs.wake);
+  let end = timeToMin(prefs.sleep);
+  if (start === null) start = 7 * 60 + 30;
+  if (end === null) end = 23 * 60 + 30;
+  if (end - start < 120) {
+    start = 7 * 60 + 30;
+    end = 23 * 60 + 30;
+  }
   (items || []).forEach((item) => {
     const s = timeToMin(item.start);
     const e = timeToMin(item.end);
@@ -584,10 +628,18 @@ function planTimelineBounds(items) {
 }
 
 function planFixedBlocks() {
-  return [
-    { kind: 'fixed', title: '午餐', startMin: 12 * 60, endMin: 13 * 60 },
-    { kind: 'fixed', title: '晚餐', startMin: 18 * 60, endMin: 19 * 60 },
-  ];
+  const p = planPrefs();
+  const blocks = [];
+  const push = (label, from, to) => {
+    const s = timeToMin(from);
+    const e = timeToMin(to);
+    if (s === null || e === null || e <= s) return;
+    blocks.push({ kind: 'fixed', title: label, startMin: s, endMin: e });
+  };
+  push('午餐', p.lunchStart, p.lunchEnd);
+  push('晚餐', p.dinnerStart, p.dinnerEnd);
+  (p.fixed || []).forEach((b) => push(b.label || '固定安排', b.start, b.end));
+  return blocks;
 }
 
 /* 比较标题时忽略数字，避免「处理 3 个订单」和「处理 2 个订单」被当成两件事 */
@@ -652,6 +704,111 @@ function openPlanModal(item, date, preset) {
       }
       Store.save();
       App.refresh();
+    },
+  });
+}
+
+/* =========================================================
+   计划偏好
+   ========================================================= */
+
+function planFixedRowHtml(block) {
+  const b = block || {};
+  return (
+    '<div class="fixed-row" data-fixed-row>' +
+    '<input class="input" type="time" name="fixedStart" value="' + esc(b.start || '') + '" aria-label="开始时间">' +
+    '<input class="input" type="time" name="fixedEnd" value="' + esc(b.end || '') + '" aria-label="结束时间">' +
+    '<input class="input" type="text" name="fixedLabel" value="' + esc(b.label || '') + '" placeholder="例如：上班 / 健身课" maxlength="20">' +
+    '<button type="button" class="icon-btn danger" data-remove-fixed aria-label="删除">' + icon('x') + '</button>' +
+    '</div>'
+  );
+}
+
+function openPlanPrefsModal() {
+  const p = planPrefs();
+  const fixed = (p.fixed || []).map(planFixedRowHtml).join('');
+
+  openModal({
+    title: '计划偏好',
+    subtitle: '决定时间轴范围、用餐时段和每天固定的安排',
+    body:
+      fRow(fTime('wake', '起床时间', p.wake), fTime('sleep', '睡觉时间', p.sleep)) +
+      fRow(fTime('lunchStart', '午餐开始', p.lunchStart), fTime('lunchEnd', '午餐结束', p.lunchEnd)) +
+      fRow(fTime('dinnerStart', '晚餐开始', p.dinnerStart), fTime('dinnerEnd', '晚餐结束', p.dinnerEnd)) +
+      fNumber('focusMin', '专注时长（分钟）', {
+        value: p.focusMin,
+        min: 15,
+        max: 180,
+        step: 5,
+        hint: '从底部拖入学习模块时，默认排这么长',
+      }) +
+      '<div class="field"><span class="field-label">固定安排（每天生效）</span>' +
+      '<div class="fixed-rows" id="fixed-rows">' + fixed + '</div>' +
+      '<button type="button" class="btn sm mt-8" data-add-fixed>+ 添加固定安排</button>' +
+      '<span class="field-hint">比如上班、通勤、固定课程；这些时段会显示在时间轴上</span>' +
+      '</div>',
+    onSubmit(data, form) {
+      if (!data.wake || !data.sleep) {
+        toast('请填写起床和睡觉时间', 'err');
+        return false;
+      }
+      if (data.sleep <= data.wake) {
+        toast('睡觉时间要晚于起床时间', 'err');
+        return false;
+      }
+      if (!data.lunchStart || !data.lunchEnd || data.lunchEnd <= data.lunchStart) {
+        toast('午餐结束要晚于开始', 'err');
+        return false;
+      }
+      if (!data.dinnerStart || !data.dinnerEnd || data.dinnerEnd <= data.dinnerStart) {
+        toast('晚餐结束要晚于开始', 'err');
+        return false;
+      }
+      const focus = Number(data.focusMin);
+      if (!(focus >= 15 && focus <= 180)) {
+        toast('专注时长请填 15–180 分钟', 'err');
+        return false;
+      }
+
+      const rows = Array.prototype.slice.call(form.querySelectorAll('[data-fixed-row]'));
+      const blocks = [];
+      for (const row of rows) {
+        const start = row.querySelector('[name="fixedStart"]').value;
+        const end = row.querySelector('[name="fixedEnd"]').value;
+        const label = row.querySelector('[name="fixedLabel"]').value.trim();
+        if (!start && !end) continue;
+        if (!start || !end || end <= start) {
+          toast('固定安排的时间不完整，或结束早于开始', 'err');
+          return false;
+        }
+        blocks.push({ start: start, end: end, label: label || '固定安排' });
+      }
+
+      Store.data.settings.planPrefs = {
+        wake: data.wake,
+        sleep: data.sleep,
+        lunchStart: data.lunchStart,
+        lunchEnd: data.lunchEnd,
+        dinnerStart: data.dinnerStart,
+        dinnerEnd: data.dinnerEnd,
+        focusMin: focus,
+        fixed: blocks,
+      };
+      Store.save();
+      toast('计划偏好已保存');
+      App.refresh();
+    },
+    onMount(form) {
+      form.querySelector('[data-add-fixed]').addEventListener('click', () => {
+        form.querySelector('#fixed-rows').insertAdjacentHTML('beforeend', planFixedRowHtml(null));
+      });
+      form.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-remove-fixed]');
+        if (!btn) return;
+        e.preventDefault();
+        const row = btn.closest('[data-fixed-row]');
+        if (row) row.remove();
+      });
     },
   });
 }
