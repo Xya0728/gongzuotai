@@ -136,7 +136,6 @@ Pages.plan = {
     this.setupTimelineLongPress(el, date, bounds);
   },
 
-  /* ---------------- 参考日程横幅 ---------------- */
   /* ---------------- 时间轴 ---------------- */
   timelineHtml(date, items, bounds, isToday) {
     const HOUR = 54;
@@ -239,7 +238,7 @@ Pages.plan = {
       fixed.map((b) => block({ kind: 'fixed', title: b.label, startMin: b.startMin, endMin: b.endMin })).join('') +
       moving.map(block).join('') +
       (!moving.length && !fixed.length
-        ? '<div class="tl-empty tiny muted">今天还是空的，点右上角「智能排程」生成一版参考日程</div>'
+        ? '<div class="tl-empty tiny muted">今天还是空的，长按空白时间段，或从底部拖一个模块进来</div>'
         : '') +
       '</div></div></section>'
     );
@@ -273,7 +272,7 @@ Pages.plan = {
                 '</div></div>'
             )
             .join('')
-        : emptyState('这一天还没有计划', '点右上角「添加计划」，或让智能排程先给一版参考')) +
+        : emptyState('这一天还没有计划', '点右上角「添加计划」，或从底部拖一个模块进来')) +
       '</div></section>'
     );
   },
