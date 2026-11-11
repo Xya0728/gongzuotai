@@ -1102,6 +1102,114 @@ test('P25 天气会自动刷新，不用手动点', async () => {
   }
 });
 
+/* ---------------- P26 健身休息日 ---------------- */
+
+test('P26 休息日可以拖进周计划，颜色与训练日不同', async () => {
+  resetData();
+  const t = todayKey();
+  Pages.fitness.weekStart = weekStartKey(t);
+  Pages.fitness.selected = t;
+  showPage('fitness');
+  const rest = document.querySelector('[data-rest-day]');
+  const cell = document.querySelector('.week-day[data-date="' + t + '"]');
+  assert(rest && cell, '应有休息日模块和周格子');
+  const dt = new DataTransfer();
+  rest.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+  cell.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer: dt }));
+  cell.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: dt }));
+  await tick(250);
+  eq(Store.data.fitness.plans.length, 1, '应生成一条计划');
+  eq(Store.data.fitness.plans[0].kind, 'rest', '计划类型');
+  const restCell = document.querySelector('.week-day[data-date="' + t + '"]');
+  includes(restCell.textContent, '休息日', '格子里显示休息日');
+  const restPlan = restCell.querySelector('.wd-plan.is-rest');
+  assert(restPlan, '休息日应有独立样式');
+  const restBg = getComputedStyle(restPlan).backgroundColor;
+
+  const next = addDays(t, 1);
+  const routine = document.querySelector('.routine-item');
+  const nextCell = document.querySelector('.week-day[data-date="' + next + '"]');
+  const dt2 = new DataTransfer();
+  routine.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt2 }));
+  nextCell.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: dt2 }));
+  await tick(250);
+  const trainPlan = document.querySelector('.week-day[data-date="' + next + '"] .wd-plan:not(.is-rest)');
+  assert(trainPlan, '训练日应有训练卡片');
+  assert(getComputedStyle(trainPlan).backgroundColor !== restBg, '休息日颜色应与训练日不同');
+});
+
+test('P26 休息日和训练不能互相叠加', async () => {
+  resetData();
+  const t = todayKey();
+  Pages.fitness.weekStart = weekStartKey(t);
+  Pages.fitness.selected = t;
+  Store.data.fitness.plans = [
+    { id: 'train1', date: t, routineId: 'rt-push', name: '推日', note: '', exercises: [] },
+  ];
+  Store.save();
+  showPage('fitness');
+  const rest = document.querySelector('[data-rest-day]');
+  const cell = document.querySelector('.week-day[data-date="' + t + '"]');
+  const dt = new DataTransfer();
+  rest.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+  cell.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: dt }));
+  await tick(220);
+  eq(Store.data.fitness.plans.length, 1, '有训练时不能加休息日');
+
+  Store.data.fitness.plans = [{ id: 'rest1', date: t, kind: 'rest', name: '休息日', note: '' }];
+  Store.save();
+  App.render();
+  const routine = document.querySelector('.routine-item');
+  const cell2 = document.querySelector('.week-day[data-date="' + t + '"]');
+  const dt2 = new DataTransfer();
+  routine.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt2 }));
+  cell2.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: dt2 }));
+  await tick(220);
+  eq(Store.data.fitness.plans.length, 1, '休息日不能叠加训练');
+  includes(mainText(), '休息日', '详情显示休息日');
+});
+
+/* ---------------- P27 常吃食物小细节 ---------------- */
+
+test('P27 新增常吃食物可以选小细节并影响热量', async () => {
+  resetData();
+  const t = todayKey();
+  Pages.diet.date = t;
+  Pages.diet.month = monthKeyOf(t);
+  showPage('diet');
+  document.querySelector('[data-act="addFav"]').click();
+  await tick(150);
+  const form = document.querySelector('#modal-root form');
+  form.elements.name.value = '鸡腿';
+  form.elements.portion.value = '1 个';
+  form.elements.detail.value = '去皮';
+  form.elements.name.dispatchEvent(new Event('input', { bubbles: true }));
+  form.elements.portion.dispatchEvent(new Event('input', { bubbles: true }));
+  form.elements.detail.dispatchEvent(new Event('change', { bubbles: true }));
+  await tick(80);
+  includes(form.querySelector('#fav-kcal-estimate').textContent, '166', '去皮后的估算');
+  form.requestSubmit();
+  await tick(250);
+
+  const food = Store.data.diet.foods.filter((f) => f.name === '鸡腿')[0];
+  assert(food, '应保存常吃食物');
+  eq(food.detail, '去皮', '保存小细节');
+  eq(food.calories, 166, '按去皮计算热量');
+  includes(mainText(), '去皮', '卡片显示小细节');
+
+  const card = Array.prototype.find.call(document.querySelectorAll('.food-card'), (el) => el.textContent.indexOf('鸡腿') >= 0);
+  const meal = document.querySelector('.meal[data-meal="lunch"]');
+  const dt = new DataTransfer();
+  card.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+  meal.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: dt }));
+  await tick(250);
+  const item = Store.data.diet.meals[0];
+  assert(item, '应拖入搭配');
+  eq(item.detail, '去皮', '拖拽带上小细节');
+  eq(item.calories, 166, '拖拽带上热量');
+  includes(document.querySelector('.meal[data-meal="lunch"]').textContent, '去皮', '餐次显示小细节');
+});
+
 /* ---------------- 运行 ---------------- */
 
 (async function runAll() {

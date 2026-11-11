@@ -58,6 +58,16 @@ function fitnessDayCell(date, plans, today, selected) {
 }
 
 function fitnessWeekPlanCard(plan) {
+  if (plan.kind === 'rest') {
+    return (
+      '<div class="wd-plan is-rest">' +
+      '<div class="wd-plan-top"><b>休息日</b>' +
+      '<button class="wd-del" data-act="delPlan" data-id="' + plan.id + '" aria-label="移除">' + icon('x') + '</button></div>' +
+      '<div class="wd-tags"><span>恢复</span><span>拉伸</span></div>' +
+      '<div class="wd-ex">散步 / 拉伸 / 早点睡</div>' +
+      '</div>'
+    );
+  }
   const exercises = fitnessPlanExercises(plan);
   const parts = fitnessParts(exercises);
   return (
@@ -146,6 +156,12 @@ Pages.fitness = {
       '<section class="card"><div class="card-head"><div><h2>训练模板</h2>' +
       '<p class="card-sub">按住模板，拖进上面某一天</p></div>' +
       '<button class="btn ghost sm" data-act="addRoutine">+ 新增</button></div>' +
+      '<div class="rest-template" draggable="true" data-rest-day="1" title="拖进某一天，安排恢复">' +
+      '<span class="drag-grip" aria-hidden="true">' + icon('grip') + '</span>' +
+      '<span class="rest-ico">' + icon('coffee') + '</span>' +
+      '<span class="rest-body"><b>休息日</b><span>恢复 / 拉伸 / 散步</span></span>' +
+      '<span class="rest-badge">拖到某天</span>' +
+      '</div>' +
       (d.fitness.routines.length
         ? '<div class="list">' +
           d.fitness.routines
@@ -181,6 +197,17 @@ Pages.fitness = {
         ? selectedPlans
             .map((plan) => {
               const exercises = fitnessPlanExercises(plan);
+              if (plan.kind === 'rest') {
+                return (
+                  '<div class="day-plan is-rest">' +
+                  '<div class="day-plan-head"><b>休息日</b>' +
+                  '<span class="chip teal">恢复</span>' +
+                  '<button class="icon-btn danger" data-act="delPlan" data-id="' + plan.id + '" aria-label="移除">' + icon('trash') + '</button>' +
+                  '</div>' +
+                  '<div class="rest-detail">不安排力量训练。可以散步、拉伸、泡沫轴放松，早点睡。</div>' +
+                  '</div>'
+                );
+              }
               return (
                 '<div class="day-plan">' +
                 '<div class="day-plan-head"><b>' + esc(fitnessPlanName(plan)) + '</b>' +
@@ -305,6 +332,7 @@ Pages.fitness = {
 
 function setupFitnessDnD(root) {
   const routines = root.querySelectorAll('[data-routine-id]');
+  const restCard = root.querySelector('[data-rest-day]');
   const cells = root.querySelectorAll('.week-day[data-date]');
 
   function clearHover() {
@@ -317,6 +345,7 @@ function setupFitnessDnD(root) {
       const routine = findById(Store.data.fitness.routines, id);
       if (!routine) return;
       Pages.fitness.dragRoutine = id;
+      Pages.fitness.dragRest = false;
       row.classList.add('dragging');
       if (event.dataTransfer) {
         event.dataTransfer.effectAllowed = 'copy';
@@ -334,6 +363,27 @@ function setupFitnessDnD(root) {
     });
   });
 
+  if (restCard) {
+    restCard.addEventListener('dragstart', (event) => {
+      Pages.fitness.dragRoutine = null;
+      Pages.fitness.dragRest = true;
+      restCard.classList.add('dragging');
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'copy';
+        try {
+          event.dataTransfer.setData('text/plain', 'rest:1');
+        } catch (err) {
+          /* ignore */
+        }
+      }
+    });
+    restCard.addEventListener('dragend', () => {
+      restCard.classList.remove('dragging');
+      Pages.fitness.dragRest = false;
+      clearHover();
+    });
+  }
+
   cells.forEach((cell) => {
     cell.addEventListener('dragover', (event) => {
       event.preventDefault();
@@ -344,6 +394,43 @@ function setupFitnessDnD(root) {
     cell.addEventListener('drop', (event) => {
       event.preventDefault();
       cell.classList.remove('drop-hover');
+      let isRest = Pages.fitness.dragRest;
+      let rawText = '';
+      if (event.dataTransfer) {
+        try {
+          rawText = event.dataTransfer.getData('text/plain') || '';
+        } catch (err) {
+          rawText = '';
+        }
+      }
+      if (rawText === 'rest:1') isRest = true;
+      if (isRest) {
+        const date = cell.dataset.date;
+        Store.data.fitness.plans = Store.data.fitness.plans || [];
+        const dayPlans = Store.data.fitness.plans.filter((p) => p.date === date);
+        if (dayPlans.some((p) => p.kind === 'rest')) {
+          toast('这天已经安排休息日了');
+          return;
+        }
+        if (dayPlans.length) {
+          toast('这天已有训练，休息日不能叠加');
+          return;
+        }
+        Store.data.fitness.plans.push({
+          id: uid(),
+          date: date,
+          kind: 'rest',
+          name: '休息日',
+          note: '恢复 / 拉伸 / 散步',
+          createdAt: Date.now(),
+        });
+        Pages.fitness.selected = date;
+        Store.save();
+        toast('已把「休息日」放进 ' + fmtDateCN(date, true));
+        App.refresh();
+        return;
+      }
+
       let routineId = Pages.fitness.dragRoutine;
       if (!routineId && event.dataTransfer) {
         try {
@@ -357,6 +444,10 @@ function setupFitnessDnD(root) {
       if (!routine) return;
       const date = cell.dataset.date;
       Store.data.fitness.plans = Store.data.fitness.plans || [];
+      if (Store.data.fitness.plans.some((p) => p.date === date && p.kind === 'rest')) {
+        toast('这天是休息日，先移除休息日再排训练');
+        return;
+      }
       const exists = Store.data.fitness.plans.some((p) => p.date === date && p.routineId === routine.id);
       if (exists) {
         toast('这天已经安排过「' + routine.name + '」');

@@ -6,6 +6,22 @@
 
 const MEAL_SHARE = { breakfast: 0.25, lunch: 0.35, dinner: 0.3, snack: 0.1 };
 
+const DIET_DETAIL_OPTIONS = [
+  { value: '', label: '不用' },
+  { value: '去皮', label: '去皮' },
+  { value: '带皮', label: '带皮' },
+  { value: '少糖', label: '少糖' },
+  { value: '无糖', label: '无糖' },
+  { value: '全糖', label: '全糖' },
+  { value: '水煮', label: '水煮' },
+  { value: '蒸', label: '蒸' },
+  { value: '煎', label: '煎' },
+  { value: '炸', label: '炸' },
+  { value: '烤', label: '烤' },
+  { value: '大份', label: '大份' },
+  { value: '小份', label: '小份' },
+];
+
 /* 常见食物热量基准（每 100g / 每个），只求大概，够用就行 */
 const FOOD_KCAL_TABLE = [
   { keys: ['鸡腿'], per100: 210, unitKcal: 230, gramsPerUnit: 110 },
@@ -378,6 +394,7 @@ Pages.diet = {
                 '<div class="food-card" draggable="true" data-food-id="' + f.id + '" title="拖到早餐/午餐/晚餐/加餐里">' +
                 '<span class="food-thumb">' + foodArt(f.name, f.category) + '</span>' +
                 '<span class="food-meta"><b>' + esc(f.name) + '</b><span>' + esc(f.portion || '') +
+                (f.detail ? ' · ' + esc(f.detail) : '') +
                 ' · ' + (estimated ? '≈' : '') + dietFoodKcal(f) + ' kcal</span></span>' +
                 '<button class="icon-btn danger" data-act="delFav" data-id="' + f.id + '" aria-label="删除">' + icon('trash') + '</button></div>'
                 );
@@ -640,6 +657,7 @@ function setupDietDnD(root) {
         type: type,
         name: food.name,
         portion: food.portion || '',
+        detail: food.detail || '',
         calories: dietFoodKcal(food),
         protein: dietFoodProtein(food),
         createdAt: Date.now(),
@@ -667,26 +685,7 @@ function openFoodModal(date, presetType) {
         fInput('portion', '分量', { placeholder: '例如：1 个 / 200 g', maxlength: 30 }),
         fNumber('calories', '热量（kcal）', { value: '', min: 0, step: 1, placeholder: '留空自动估算' })
       ) +
-      fSelect(
-        'detail',
-        '小细节（可选）',
-        [
-          { value: '', label: '不用' },
-          { value: '去皮', label: '去皮' },
-          { value: '带皮', label: '带皮' },
-          { value: '少糖', label: '少糖' },
-          { value: '无糖', label: '无糖' },
-          { value: '全糖', label: '全糖' },
-          { value: '水煮', label: '水煮' },
-          { value: '蒸', label: '蒸' },
-          { value: '煎', label: '煎' },
-          { value: '炸', label: '炸' },
-          { value: '烤', label: '烤' },
-          { value: '大份', label: '大份' },
-          { value: '小份', label: '小份' },
-        ],
-        ''
-      ) +
+      fSelect('detail', '小细节（可选）', DIET_DETAIL_OPTIONS, '') +
       '<div class="kcal-hint tiny muted" id="kcal-estimate">热量留空时，会按常见食物和分量估算</div>' +
       (foods.length
         ? '<div class="field"><span class="field-label">常吃食物（点一下填入）</span><div class="food-chips">' +
@@ -764,21 +763,24 @@ function openFavFoodModal() {
         fInput('portion', '常用分量', { placeholder: '例如：100 g', maxlength: 30 }),
         fNumber('calories', '热量（kcal）', { value: '', min: 0, step: 1, placeholder: '例如：165' })
       ) +
+      fSelect('detail', '小细节（可选）', DIET_DETAIL_OPTIONS, '') +
       fSelect('category', '分类', FOOD_CATEGORIES, '其他') +
       '<div class="kcal-hint tiny muted" id="fav-kcal-estimate">热量留空时，会按食物和分量自动估算</div>',
     onMount(form) {
       const nameEl = form.elements.name;
       const portionEl = form.elements.portion;
+      const detailEl = form.elements.detail;
       const hint = form.querySelector('#fav-kcal-estimate');
       const updateHint = () => {
         if (!hint) return;
-        const est = estimateFoodCalories(nameEl.value, portionEl.value, '');
+        const est = estimateFoodCalories(nameEl.value, portionEl.value, detailEl ? detailEl.value : '');
         hint.textContent = nameEl.value
           ? '按常见食物估算约 ' + est + ' kcal（热量留空会自动填）'
           : '热量留空时，会按食物和分量自动估算';
       };
       if (nameEl) nameEl.addEventListener('input', updateHint);
       if (portionEl) portionEl.addEventListener('input', updateHint);
+      if (detailEl) detailEl.addEventListener('change', updateHint);
     },
     onSubmit(data) {
       const name = String(data.name || '').trim();
@@ -787,12 +789,14 @@ function openFavFoodModal() {
         return false;
       }
       const portion = String(data.portion || '').trim();
+      const detail = String(data.detail || '').trim();
       const rawKcal = String(data.calories || '').trim();
       Store.data.diet.foods.push({
         id: uid(),
         name: name,
         portion: portion,
-        calories: rawKcal !== '' ? Math.max(0, Number(rawKcal) || 0) : estimateFoodCalories(name, portion, ''),
+        detail: detail,
+        calories: rawKcal !== '' ? Math.max(0, Number(rawKcal) || 0) : estimateFoodCalories(name, portion, detail),
         protein: estimateFoodProtein(name, portion),
         category: data.category || foodCategoryOf(name),
       });

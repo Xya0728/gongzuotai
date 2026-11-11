@@ -2075,3 +2075,50 @@ body.modal-open { overflow: hidden; }
 @media (max-width: 760px) {
   .diet-macros { grid-template-columns: 1fr; }
 }
+
+/* ---------------- 健身休息日 ---------------- */
+
+.rest-template {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+  border: 1px dashed rgba(37, 99, 235, 0.32);
+  background: rgba(37, 99, 235, 0.06);
+  cursor: grab;
+  transition: background 0.16s ease, transform 0.16s ease;
+}
+.rest-template:hover { background: rgba(37, 99, 235, 0.1); transform: translateY(-1px); }
+.rest-template.dragging { opacity: 0.45; }
+.rest-ico {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+}
+.rest-ico .ic { width: 16px; height: 16px; }
+.rest-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rest-body b { font-size: 12.5px; font-weight: 650; color: #1d4ed8; }
+.rest-body span { font-size: 10.5px; color: var(--muted); }
+.rest-badge { font-size: 10px; color: #1d4ed8; opacity: 0.7; }
+
+.wd-plan.is-rest {
+  border-color: rgba(37, 99, 235, 0.24);
+  background: rgba(37, 99, 235, 0.08);
+}
+.wd-plan.is-rest .wd-plan-top b { color: #1d4ed8; }
+.wd-plan.is-rest .wd-tags span { color: #1d4ed8; }
+.wd-plan.is-rest .wd-ex { color: #1d4ed8; opacity: 0.8; }
+
+.day-plan.is-rest {
+  border-color: rgba(37, 99, 235, 0.2);
+  background: rgba(37, 99, 235, 0.05);
+}
+.day-plan.is-rest .day-plan-head b { color: #1d4ed8; }
+.rest-detail { font-size: 12px; line-height: 1.7; color: var(--muted); }
