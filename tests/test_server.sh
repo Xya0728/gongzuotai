@@ -57,6 +57,12 @@ check() {
 CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/index.html")
 [ "$CODE" = "200" ]; check "静态页面可访问（$CODE）" $?
 
+CC=$(curl -sI "http://127.0.0.1:$PORT/js/core.js" | tr -d '\r' | awk -F': ' 'tolower($1)=="cache-control"{print $2}')
+echo "$CC" | grep -q 'no-store'; check "静态资源不缓存（$CC）" $?
+
+CC_HTML=$(curl -sI "http://127.0.0.1:$PORT/" | tr -d '\r' | awk -F': ' 'tolower($1)=="cache-control"{print $2}')
+echo "$CC_HTML" | grep -q 'no-store'; check "首页不缓存（$CC_HTML）" $?
+
 curl -s -X PUT -H 'Content-Type: application/json' \
   -d '{"data":{"version":1,"memos":[{"id":"t1","text":"file-test"}]}}' \
   "http://127.0.0.1:$PORT/api/state" > /dev/null

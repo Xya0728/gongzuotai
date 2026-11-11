@@ -116,7 +116,7 @@ const App = {
       '<button class="btn sm" id="save-now">保存</button></div>' +
       '<div class="muted tiny mt-8">' +
       (Store.mode === 'server' ? '自动保存 · ⌘S 保存' : '自动保存已开启 · ⌘S 保存') +
-      '</div></div>';
+      ' · v' + APP_VERSION + '</div></div>';
 
     const saveBtn = sidebar.querySelector('#save-now');
     if (saveBtn) saveBtn.addEventListener('click', manualSave);

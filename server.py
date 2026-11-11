@@ -67,6 +67,17 @@ def build_handler(store):
             # 安静模式：只在出错时输出
             pass
 
+        def end_headers(self):
+            path = self.path.split("?")[0]
+            if not path.startswith("/api/") and (
+                path == "/"
+                or path.endswith((".html", ".js", ".css", ".json", ".webmanifest", ".svg", ".png"))
+            ):
+                self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+                self.send_header("Pragma", "no-cache")
+                self.send_header("Expires", "0")
+            super().end_headers()
+
         def send_json(self, payload, status=200):
             body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             self.send_response(status)

@@ -333,6 +333,13 @@ test('P7 品牌名是「Xya的工作台」', async () => {
   assert(document.title.indexOf('我的生活工作台') === -1, '不应再出现旧名字');
 });
 
+test('P7 侧栏显示当前版本号', async () => {
+  resetData();
+  App.render();
+  includes(document.getElementById('sidebar').textContent, 'v' + APP_VERSION);
+  includes(document.getElementById('sidebar').textContent, '2026.11.11');
+});
+
 /* ---------------- P8 数据文件（仅 http 模式） ---------------- */
 
 if (location.protocol === 'http:') {
